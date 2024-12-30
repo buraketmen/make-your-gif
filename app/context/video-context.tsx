@@ -1,9 +1,10 @@
 "use client"
 import { createContext, useContext, useState, useRef, useEffect, ReactNode } from 'react';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
+import { DrawingFrame, Mode } from '@/types/draw';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
+import { drawFrameToCanvas } from '@/lib/utils';
 
-type Mode = 'record' | 'upload';
 
 interface VideoContextType {
   // Video States
@@ -17,6 +18,8 @@ interface VideoContextType {
   // GIF States
   gifUrl: string | null;
   isProcessing: boolean;
+  gifBlob: Blob | null;
+  setGifBlob: (blob: Blob | null) => void;
 
   // Editor States
   duration: number;
@@ -30,6 +33,10 @@ interface VideoContextType {
   isCropMode: boolean;
   setIsCropMode: (value: boolean) => void;
   croppedVideoUrl: string | null;
+  frames: DrawingFrame[];
+  setFrames: (frames: DrawingFrame[] | ((prev: DrawingFrame[]) => DrawingFrame[])) => void;
+  selectedFrame: DrawingFrame | null;
+  setSelectedFrame: (frame: DrawingFrame | null) => void;
 
   // Handlers
   handleStartRecording: () => void;
@@ -65,6 +72,7 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
   // GIF States
   const [gifUrl, setGifUrl] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [gifBlob, setGifBlob] = useState<Blob | null>(null);
 
   // Editor States
   const [duration, setDuration] = useState(0);
@@ -73,6 +81,8 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
   const [crop, setCrop] = useState({ x: 20, y: 20, width: 60, height: 60 });
   const [isCropMode, setIsCropMode] = useState(false);
   const [croppedVideoUrl, setCroppedVideoUrl] = useState<string | null>(null);
+  const [frames, setFrames] = useState<DrawingFrame[]>([]);
+  const [selectedFrame, setSelectedFrame] = useState<DrawingFrame | null>(null);
 
   // Refs
   const ffmpegRef = useRef<FFmpeg | null>(null);
@@ -91,6 +101,75 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
     }
   };
 
+  // Function to generate GIF with current settings
+  const generateGif = async (inputFile: Blob) => {
+    try {
+      setIsProcessing(true);
+      await loadFFmpeg();
+      const ffmpeg = ffmpegRef.current!;
+
+      await ffmpeg.writeFile('input.webm', await fetchFile(inputFile));
+
+      // Build the filter complex command
+      const filterCommands = [];
+      
+      // Add trim filter if needed
+      if (trimStart > 0 || trimEnd < duration) {
+        filterCommands.push(`trim=start=${trimStart}:end=${trimEnd}`);
+      }
+
+      // Add crop filter if video is cropped
+      if (croppedVideoUrl) {
+        filterCommands.push(`crop=iw*${crop.width/100}:ih*${crop.height/100}:iw*${crop.x/100}:ih*${crop.y/100}`);
+      }
+
+      // Add standard GIF conversion filters
+      filterCommands.push('fps=10', 'scale=480:-1:flags=lanczos');
+
+      // Combine all filters
+      const filterComplex = filterCommands.join(',');
+
+      // Execute FFmpeg command
+      await ffmpeg.exec([
+        '-i', 'input.webm',
+        '-vf', filterComplex,
+        'output.gif'
+      ]);
+
+      const data = await ffmpeg.readFile('output.gif');
+      const gifBlob = new Blob([data], { type: 'image/gif' });
+      
+      if (gifUrl) {
+        URL.revokeObjectURL(gifUrl);
+      }
+      setGifUrl(URL.createObjectURL(gifBlob));
+      setGifBlob(gifBlob);
+    } catch (error) {
+      console.error('Error generating GIF:', error);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Update preview when trim or crop values change
+  useEffect(() => {
+    if (!videoBlob) return;
+
+    if (previewTimeoutRef.current) {
+      clearTimeout(previewTimeoutRef.current);
+    }
+
+    previewTimeoutRef.current = setTimeout(() => {
+      generateGif(videoBlob);
+    }, 500);
+
+    return () => {
+      if (previewTimeoutRef.current) {
+        clearTimeout(previewTimeoutRef.current);
+      }
+    };
+  }, [videoBlob, trimStart, trimEnd, crop, croppedVideoUrl]);
+
   // Recording Handlers
   const handleStartRecording = () => {
     setIsRecording(true);
@@ -105,32 +184,7 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
     setIsRecording(false);
     setDuration(videoDuration);
     setTrimEnd(videoDuration);
-
-    // Generate GIF immediately
-    try {
-      setIsProcessing(true);
-      await loadFFmpeg();
-      const ffmpeg = ffmpegRef.current!;
-
-      await ffmpeg.writeFile('input.webm', await fetchFile(blob));
-      await ffmpeg.exec([
-        '-i', 'input.webm',
-        '-vf', 'fps=10,scale=480:-1:flags=lanczos',
-        'output.gif'
-      ]);
-
-      const data = await ffmpeg.readFile('output.gif');
-      const gifBlob = new Blob([data], { type: 'image/gif' });
-      
-      if (gifUrl) {
-        URL.revokeObjectURL(gifUrl);
-      }
-      setGifUrl(URL.createObjectURL(gifBlob));
-    } catch (error) {
-      console.error('Error generating GIF:', error);
-    } finally {
-      setIsProcessing(false);
-    }
+    generateGif(blob);
   };
 
   // File Upload Handler
@@ -149,32 +203,7 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
         setDuration(videoDuration);
         setTrimEnd(videoDuration);
         URL.revokeObjectURL(video.src);
-
-        // Generate GIF immediately
-        try {
-          setIsProcessing(true);
-          await loadFFmpeg();
-          const ffmpeg = ffmpegRef.current!;
-
-          await ffmpeg.writeFile('input.webm', await fetchFile(file));
-          await ffmpeg.exec([
-            '-i', 'input.webm',
-            '-vf', 'fps=10,scale=480:-1:flags=lanczos',
-            'output.gif'
-          ]);
-
-          const data = await ffmpeg.readFile('output.gif');
-          const gifBlob = new Blob([data], { type: 'image/gif' });
-          
-          if (gifUrl) {
-            URL.revokeObjectURL(gifUrl);
-          }
-          setGifUrl(URL.createObjectURL(gifBlob));
-        } catch (error) {
-          console.error('Error generating GIF:', error);
-        } finally {
-          setIsProcessing(false);
-        }
+        generateGif(file);
       };
     }
   };
@@ -236,9 +265,11 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
     setCrop({ x: 20, y: 20, width: 60, height: 60 });
   };
 
+
+
   // GIF Preview Update
   const updatePreview = async () => {
-    if (!videoBlob) return;
+    if (!videoBlob || frames.length === 0) return;
     
     if (previewTimeoutRef.current) {
       clearTimeout(previewTimeoutRef.current);
@@ -250,14 +281,34 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
         await loadFFmpeg();
         const ffmpeg = ffmpegRef.current!;
 
-        const inputVideo = croppedVideoUrl ? await fetch(croppedVideoUrl).then(r => r.blob()) : videoBlob;
-        await ffmpeg.writeFile('input.webm', await fetchFile(inputVideo));
+        // Create a temporary canvas for drawing frames
+        const canvas = document.createElement('canvas');
+        canvas.width = frames[0].width;
+        canvas.height = frames[0].height;
 
+        // Process each frame with its drawings
+        for (let i = 0; i < frames.length; i++) {
+          const frame = frames[i];
+          
+          // Draw frame using utility function
+          await drawFrameToCanvas(frame, canvas);
+
+          // Save frame to file
+          await new Promise<void>((resolve) => {
+            canvas.toBlob(async (blob) => {
+              if (blob) {
+                await ffmpeg.writeFile(`frame${i}.jpg`, await fetchFile(blob));
+                resolve();
+              }
+            }, 'image/jpeg');
+          });
+        }
+
+        // Create GIF from processed frames
         await ffmpeg.exec([
-          '-i', 'input.webm',
-          '-t', String(trimEnd - trimStart),
-          '-ss', String(trimStart),
-          '-vf', 'fps=10,scale=480:-1:flags=lanczos',
+          '-framerate', '5',
+          '-i', 'frame%d.jpg',
+          '-vf', `scale=${frames[0].width}:${frames[0].height}:flags=lanczos`,
           'output.gif'
         ]);
 
@@ -268,6 +319,7 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
           URL.revokeObjectURL(gifUrl);
         }
         setGifUrl(URL.createObjectURL(gifBlob));
+        setGifBlob(gifBlob);
       } catch (error) {
         console.error('Error updating preview:', error);
       } finally {
@@ -296,7 +348,7 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
         clearTimeout(previewTimeoutRef.current);
       }
     };
-  }, [trimStart, trimEnd, croppedVideoUrl]);
+  }, [frames]); // Only depend on frames changes
 
   useEffect(() => {
     return () => {
@@ -317,6 +369,8 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
     // GIF States
     gifUrl,
     isProcessing,
+    gifBlob,
+    setGifBlob,
 
     // Editor States
     duration,
@@ -330,6 +384,10 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
     isCropMode,
     setIsCropMode,
     croppedVideoUrl,
+    frames,
+    setFrames,
+    selectedFrame,
+    setSelectedFrame,
 
     // Handlers
     handleStartRecording,

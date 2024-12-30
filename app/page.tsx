@@ -1,8 +1,8 @@
 'use client';
 
 import { AnimatePresence } from 'framer-motion';
-import { VideoInput } from './components/VideoInput';
-import { VideoWorkspace } from './components/VideoWorkspace';
+import { VideoInput } from '@/components/video/input/VideoInput';
+import { VideoWorkspace } from '@/components/video/workspace/VideoWorkspace';
 import { useVideo } from '@/context/video-context';
 
 export default function Home() {
