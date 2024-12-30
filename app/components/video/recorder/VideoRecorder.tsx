@@ -1,16 +1,14 @@
+'use client';
+
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Button } from "@/components/ui/button";
-import { Camera, StopCircle, Video } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
+import { VideoRecorderProps } from './types';
+import { RecordingProgress } from './RecordingProgress';
+import { RecordingControls } from './RecordingControls';
+import { CameraError } from './CameraError';
+import { RecordingIndicator } from './RecordingIndicator';
 
 const MAX_RECORDING_DURATION = 15; // seconds
-
-interface VideoRecorderProps {
-  onRecordingComplete: (blob: Blob, duration: number) => void;
-  isRecording: boolean;
-  onStopRecording: () => void;
-  onStartRecording: () => void;
-}
 
 export const VideoRecorder = ({ 
   onRecordingComplete, 
@@ -45,6 +43,15 @@ export const VideoRecorder = ({
       setStream(mediaStream);
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
+        // Wait for video metadata to load
+        await new Promise<void>((resolve) => {
+          if (!videoRef.current) return;
+          if (videoRef.current.readyState >= 2) {
+            resolve();
+          } else {
+            videoRef.current.onloadeddata = () => resolve();
+          }
+        });
       }
     } catch (error: unknown) {
       console.error('Error accessing camera:', error);
@@ -86,9 +93,10 @@ export const VideoRecorder = ({
       mediaRecorderRef.current.stop();
       onStopRecording();
       
-      // Use the final recording time for the blob
       mediaRecorderRef.current.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+        const blob = new Blob(chunksRef.current, { 
+          type: 'video/webm;codecs=h264' 
+        });
         onRecordingComplete(blob, finalTime);
       };
     }
@@ -98,23 +106,23 @@ export const VideoRecorder = ({
     if (!stream) return;
 
     try {
-      const mediaRecorder = new MediaRecorder(stream);
+      const options = { 
+        mimeType: 'video/webm;codecs=h264',
+        videoBitsPerSecond: 2500000 // 2.5 Mbps for better quality
+      };
+
+      const mediaRecorder = new MediaRecorder(stream, options);
       mediaRecorderRef.current = mediaRecorder;
       chunksRef.current = [];
 
       mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
+        if (event.data && event.data.size > 0) {
           chunksRef.current.push(event.data);
         }
       };
 
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: 'video/webm' });
-        const duration = recordingTime;
-        onRecordingComplete(blob, duration);
-      };
-
-      mediaRecorder.start();
+      // Request data every second for more reliable recording
+      mediaRecorder.start(1000);
 
       setTimeout(() => {
         if (mediaRecorderRef.current?.state === 'recording' && isRecording) {
@@ -123,8 +131,34 @@ export const VideoRecorder = ({
       }, MAX_RECORDING_DURATION * 1000);
     } catch (error) {
       console.error('Error starting recording:', error);
-      setPermissionError('Failed to start recording. Please try again.');
-      onStopRecording();
+      // Try fallback codec if h264 is not supported
+      try {
+        const fallbackOptions = { 
+          mimeType: 'video/webm',
+          videoBitsPerSecond: 2500000
+        };
+        const mediaRecorder = new MediaRecorder(stream, fallbackOptions);
+        mediaRecorderRef.current = mediaRecorder;
+        chunksRef.current = [];
+
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data && event.data.size > 0) {
+            chunksRef.current.push(event.data);
+          }
+        };
+
+        mediaRecorder.start(1000);
+
+        setTimeout(() => {
+          if (mediaRecorderRef.current?.state === 'recording' && isRecording) {
+            stopRecording();
+          }
+        }, MAX_RECORDING_DURATION * 1000);
+      } catch (fallbackError) {
+        console.error('Error with fallback recording:', fallbackError);
+        setPermissionError('Failed to start recording. Your browser might not support video recording.');
+        onStopRecording();
+      }
     }
   }, [stream, onRecordingComplete, onStopRecording, isRecording, stopRecording]);
 
@@ -166,23 +200,7 @@ export const VideoRecorder = ({
   }, [isRecording]);
 
   if (permissionError) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <div className="text-center p-4">
-          <div className="mb-4">
-            <Camera className="w-12 h-12 text-rose-500 mx-auto" />
-          </div>
-          <p className="text-sm text-red-500 mb-4">{permissionError}</p>
-          <Button
-            onClick={initializeCamera}
-            variant="outline"
-            className="text-rose-500 hover:text-rose-600"
-          >
-            Try Again
-          </Button>
-        </div>
-      </div>
-    );
+    return <CameraError errorMessage={permissionError} onRetry={initializeCamera} />;
   }
 
   return (
@@ -199,85 +217,27 @@ export const VideoRecorder = ({
         className="w-full h-full object-cover rounded-lg"
       />
       
-      {/* Progress bar */}
+      <AnimatePresence>
+        <RecordingIndicator isRecording={isRecording} />
+      </AnimatePresence>
+
       <AnimatePresence>
         {isRecording && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="absolute top-4 right-4 flex flex-col items-end gap-2"
-          >
-            <div className="relative w-48 h-1.5 bg-black/30 rounded-full overflow-hidden backdrop-blur-sm">
-              <motion.div 
-                className="absolute left-0 top-0 h-full bg-rose-500"
-                initial={{ width: "0%" }}
-                animate={{ width: `${(recordingTime / MAX_RECORDING_DURATION) * 100}%` }}
-                transition={{ duration: 0.3 }}
-              />
-            </div>
-            <p className="text-sm text-white bg-black/50 px-3 py-1 rounded-full backdrop-blur-sm">
-              {recordingTime}s / {MAX_RECORDING_DURATION}s
-            </p>
-          </motion.div>
+          <RecordingProgress 
+            recordingTime={recordingTime} 
+            maxRecordingDuration={MAX_RECORDING_DURATION} 
+          />
         )}
       </AnimatePresence>
       
-      {/* Recording controls and progress */}
       <AnimatePresence>
         {(isControlsVisible || isRecording) && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute bottom-6 left-1/2 transform -translate-x-1/2 flex flex-col items-center"
-          >
-            {/* Record/Stop button */}
-            <div className="p-2 rounded-full bg-black/50 backdrop-blur-sm">
-              {!isRecording ? (
-                <Button
-                  onClick={onStartRecording}
-                  variant="default"
-                  size="lg"
-                  className="bg-rose-500 hover:bg-rose-600 rounded-full"
-                >
-                  <Video className="h-8 w-8" />
-                </Button>
-              ) : (
-                <Button
-                  onClick={stopRecording}
-                  variant="destructive"
-                  size="lg"
-                  className="rounded-full animate-pulse"
-                >
-                  <StopCircle className="h-8 w-8" />
-                </Button>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Recording indicator */}
-      <AnimatePresence>
-        {isRecording && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.8 }}
-            className="absolute top-4 left-4 flex items-center gap-2 bg-rose-500 text-white px-3 py-1 rounded-full text-sm font-medium"
-          >
-            <motion.div
-              className="w-2 h-2 bg-white rounded-full"
-              animate={{ scale: [1, 1.2, 1] }}
-              transition={{
-                duration: 1,
-                repeat: Infinity,
-                ease: "easeInOut"
-              }}
-            />
-            Recording
-          </motion.div>
+          <RecordingControls
+            isRecording={isRecording}
+            onStartRecording={onStartRecording}
+            onStopRecording={stopRecording}
+            isControlsVisible={isControlsVisible}
+          />
         )}
       </AnimatePresence>
     </div>
