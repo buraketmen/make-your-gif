@@ -6,6 +6,29 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+/* Track */
+::-webkit-scrollbar-track {
+  background: #fdf2f2;
+  border-radius: 5px;
+}
+
+/* Handle */
+::-webkit-scrollbar-thumb {
+  background: rgb(251 113 133);
+  border-radius: 5px;
+  border: 1px solid #fdf2f2;
+}
+
+/* Handle on hover */
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(244 63 94);
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;

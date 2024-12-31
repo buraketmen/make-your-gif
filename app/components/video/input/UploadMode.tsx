@@ -3,12 +3,10 @@
 import { motion } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import { Upload } from 'lucide-react';
+import { useVideo } from '@/context/video-context';
 
-interface UploadModeProps {
-  onFileSelected: (event: React.ChangeEvent<HTMLInputElement>) => void;
-}
-
-export const UploadMode = ({ onFileSelected }: UploadModeProps) => {
+export const UploadMode = () => {
+    const { handleFileSelected } = useVideo();
   return (
     <motion.div
       key="upload-mode"
@@ -21,7 +19,7 @@ export const UploadMode = ({ onFileSelected }: UploadModeProps) => {
         <input
           type="file"
           accept="video/*"
-          onChange={onFileSelected}
+          onChange={handleFileSelected}
           className="hidden"
           id="video-input"
         />
@@ -29,9 +27,9 @@ export const UploadMode = ({ onFileSelected }: UploadModeProps) => {
           onClick={() => document.getElementById('video-input')?.click()}
           variant="outline"
           size="lg"
-          className="bg-white hover:bg-gray-50 shadow-sm"
+          className="bg-white hover:bg-gray-50 shadow-sm gap-2"
         >
-          <Upload className="w-5 h-5 mr-2 text-rose-500" />
+          <Upload className="w-5 h-5 text-rose-500" />
           Select Video
         </Button>
         <p className="mt-4 text-sm text-gray-500">

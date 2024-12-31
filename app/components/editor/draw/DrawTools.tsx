@@ -16,34 +16,31 @@ export const DrawTools = ({ currentColor, setCurrentColor, penSize, setPenSize }
   ];
 
   return (
-    <div className="flex flex-col gap-4 p-4">
-      <div className="flex flex-col gap-2">
-        <label className="text-sm font-medium">Color</label>
+     <div className="w-24 space-y-2">
+        <div className="flex flex-col items-end gap-2">
         <input
-          type="color"
-          value={currentColor}
-          onChange={(e) => setCurrentColor(e.target.value)}
-          className="w-full h-8 cursor-pointer"
+            type="color"
+            value={currentColor}
+            onChange={(e) => setCurrentColor(e.target.value)}
+            className="w-full max-w-8 h-8 cursor-pointer rounded-lg"
         />
-      </div>
-      <div className="flex flex-col gap-2">
-        <label className="text-sm font-medium">Pen Size</label>
-        <div className="grid grid-cols-2 gap-2">
-          {penTools.map((tool) => (
-            <button
-              key={tool.size}
-              onClick={() => setPenSize(tool.size)}
-              className={`p-2 text-sm rounded ${
-                penSize === tool.size
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-gray-100 hover:bg-gray-200'
-              }`}
-            >
-              {tool.name}
-            </button>
-          ))}
         </div>
-      </div>
+
+        <div className="space-y-2">
+        {penTools.map((pen) => (
+            <button
+            key={pen.size}
+            onClick={() => setPenSize(pen.size)}
+            className={`w-full p-2 text-xs rounded-lg transition-all ${
+                penSize === pen.size
+                ? 'bg-rose-500 text-white'
+                : 'bg-gray-100 hover:bg-gray-200 text-gray-600'
+            }`}
+            >
+            {pen.name}
+            </button>
+        ))}
+        </div>
     </div>
   );
 }; 

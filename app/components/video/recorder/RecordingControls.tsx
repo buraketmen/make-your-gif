@@ -3,13 +3,17 @@
 import { motion } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import { Video, StopCircle } from 'lucide-react';
-import { RecordingControlsProps } from './types';
+
+interface RecordingControlsProps {
+  isRecording: boolean;
+  onStartRecording: () => void;
+  onStopRecording: () => void;
+}
 
 export const RecordingControls = ({ 
   isRecording, 
   onStartRecording, 
   onStopRecording,
-  isControlsVisible 
 }: RecordingControlsProps) => {
   return (
     <motion.div

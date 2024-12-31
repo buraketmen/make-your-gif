@@ -9,13 +9,8 @@ import { UploadMode } from './UploadMode';
 
 export function VideoInput() {
   const {
-    isRecording,
     mode,
     setMode,
-    handleStartRecording,
-    handleStopRecording,
-    handleVideoRecorded,
-    handleFileSelected,
   } = useVideo();
 
   return (
@@ -33,14 +28,9 @@ export function VideoInput() {
 
         <AnimatePresence mode="wait">
           {mode === 'record' ? (
-            <RecordMode
-              onRecordingComplete={handleVideoRecorded}
-              isRecording={isRecording}
-              onStopRecording={handleStopRecording}
-              onStartRecording={handleStartRecording}
-            />
+            <RecordMode />
           ) : (
-            <UploadMode onFileSelected={handleFileSelected} />
+            <UploadMode />
           )}
         </AnimatePresence>
       </Card>

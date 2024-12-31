@@ -4,18 +4,19 @@ import Image from 'next/image';
 import { Button } from "@/components/ui/button";
 import { Download } from 'lucide-react';
 import { useVideo } from '@/context/video-context';
+import Spinner from '@/components/Spinner';
 
 
 
 export const GifPreview = () => {
-    const { gifUrl, isProcessing, handleDownloadGif } = useVideo();
+    const { gifUrl, processes, handleDownloadGif } = useVideo();
   return (
     <div className="flex flex-col h-full">
       <div className="aspect-video bg-black/5 rounded-xl overflow-hidden">
-        {isProcessing ? (
+        {processes.isGeneratingGif ? (
           <div className="w-full h-full flex items-center justify-center">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-rose-500 mx-auto mb-2"></div>
+            <div className="text-center flex flex-col items-center justify-center gap-2">
+              <Spinner size={12} />
               <p className="text-sm text-gray-500">Processing...</p>
             </div>
           </div>
@@ -42,9 +43,9 @@ export const GifPreview = () => {
         {gifUrl && (
           <Button
             onClick={handleDownloadGif}
-            className="w-full bg-rose-500 hover:bg-rose-600"
+            className="w-full bg-rose-500 hover:bg-rose-600 gap-2"
           >
-            <Download className="mr-2 h-4 w-4" />
+            <Download className="h-4 w-4" />
             Download GIF
           </Button>
         )}

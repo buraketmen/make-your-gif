@@ -2,7 +2,11 @@
 
 import { Camera } from 'lucide-react';
 import { Button } from "@/components/ui/button";
-import { CameraErrorProps } from './types';
+
+interface CameraErrorProps {
+  errorMessage: string;
+  onRetry: () => void;
+} 
 
 export const CameraError = ({ errorMessage, onRetry }: CameraErrorProps) => {
   return (
