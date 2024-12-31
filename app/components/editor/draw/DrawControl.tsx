@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { X, Check } from 'lucide-react';
 import { useVideo } from '@/context/video-context';
 import { Point, Drawing, DrawingFrame } from '@/types/draw';
-import { drawPath,  } from '@/lib/utils';
+import { drawPath, extractFramesFromVideo } from '@/lib/utils';
 import FrameGrid from './FrameGrid';
 
 
@@ -39,11 +39,9 @@ export const DrawControl = () => {
       const waitForValidDuration = () => {
         return new Promise<void>((resolve) => {
           const checkDuration = () => {
-            if (video.duration && isFinite(video.duration)) {
+            if (video.duration && isFinite(video.duration) && video.videoWidth && video.videoHeight) {
               resolve();
-            } else if (video.readyState >= 2) {
-              // Try seeking to the end to get duration
-              video.currentTime = Number.MAX_SAFE_INTEGER;
+            } else {
               setTimeout(checkDuration, 50);
             }
           };
@@ -52,9 +50,7 @@ export const DrawControl = () => {
       };
 
       waitForValidDuration()
-        .then(() => video.play())
-        .then(() => {
-          video.pause();
+        .then(async () => {
           console.log('Video loaded', { 
             duration: video.duration, 
             width: video.videoWidth, 
@@ -62,72 +58,22 @@ export const DrawControl = () => {
             readyState: video.readyState 
           });
           
-          const fps = 5; // 5 frames per second
-          const frameCount = Math.min(Math.floor(video.duration * fps), 100); // Cap at 100 frames
-          const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('2d')!;
-          
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
-          
-          const newFrames: DrawingFrame[] = [];
-          let currentFrame = 0;
-
-          const extractNextFrame = async () => {
-            if (currentFrame >= frameCount) {
-              video.remove();
-              console.log('Frame extraction complete', newFrames.length);
-              setFrames(newFrames);
-              return;
-            }
-
-            return new Promise<void>((resolve) => {
-              const timeStamp = (currentFrame * video.duration) / frameCount;
-              video.currentTime = timeStamp;
-
-              video.onseeked = () => {
-                try {
-                  ctx.drawImage(video, 0, 0);
-                  
-                  newFrames.push({
-                    id: currentFrame,
-                    imageData: canvas.toDataURL('image/jpeg'),
-                    drawings: [],
-                    width: video.videoWidth,
-                    height: video.videoHeight,
-                    timestamp: timeStamp
-                  });
-
-                  currentFrame++;
-                  resolve();
-                } catch (error) {
-                  console.error('Error extracting frame:', error);
-                  resolve();
-                }
-              };
-            });
-          };
-
-          // Extract frames sequentially
-          const extractAllFrames = async () => {
-            for (let i = 0; i < frameCount; i++) {
-              await extractNextFrame();
-            }
+          try {
+            const fps = 10; // Increased to 10 frames per second for smoother animation
+            const maxFrames = 100; // Cap at 100 frames
+            const frames = await extractFramesFromVideo(video, fps, maxFrames);
+            console.log('Frame extraction complete', frames.length);
+            console.log({frames})
+            setFrames(frames);
+          } catch (error) {
+            console.error('Error extracting frames:', error);
+          } finally {
             video.remove();
-            console.log('Frame extraction complete', newFrames);
-            setFrames(newFrames);
-          };
-
-          extractAllFrames().catch(error => {
-            console.error('Error during frame extraction:', error);
-            video.remove();
-            if (newFrames.length > 0) {
-              setFrames(newFrames);
-            }
-          });
+          }
         })
         .catch(error => {
-          console.error('Error playing video:', error);
+          console.error('Error loading video:', error);
+          video.remove();
         });
     };
 
@@ -144,7 +90,7 @@ export const DrawControl = () => {
     return () => {
       video.remove();
     };
-  }, [videoBlob, croppedVideoUrl, setFrames]);
+  }, [videoBlob, croppedVideoUrl]);
 
   // Handle drawing
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {

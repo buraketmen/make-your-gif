@@ -2,7 +2,6 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { VideoRecorderProps } from './types';
 import { RecordingProgress } from './RecordingProgress';
 import { RecordingControls } from './RecordingControls';
 import { CameraError } from './CameraError';
@@ -10,12 +9,20 @@ import { RecordingIndicator } from './RecordingIndicator';
 
 const MAX_RECORDING_DURATION = 15; // seconds
 
+interface VideoRecorderProps {
+  onRecordingComplete: (blob: Blob, duration: number) => void;
+  isRecording: boolean;
+  onStopRecording: () => void;
+  onStartRecording: () => void;
+}
+
 export const VideoRecorder = ({ 
   onRecordingComplete, 
   isRecording, 
   onStopRecording,
   onStartRecording 
 }: VideoRecorderProps) => {
+
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [permissionError, setPermissionError] = useState<string | null>(null);
   const [isControlsVisible, setIsControlsVisible] = useState(true);
@@ -236,7 +243,6 @@ export const VideoRecorder = ({
             isRecording={isRecording}
             onStartRecording={onStartRecording}
             onStopRecording={stopRecording}
-            isControlsVisible={isControlsVisible}
           />
         )}
       </AnimatePresence>

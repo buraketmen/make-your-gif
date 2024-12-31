@@ -1,7 +1,11 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { RecordingProgressProps } from './types';
+
+interface RecordingProgressProps {
+  recordingTime: number;
+  maxRecordingDuration: number;
+}
 
 export const RecordingProgress = ({ recordingTime, maxRecordingDuration }: RecordingProgressProps) => {
   return (

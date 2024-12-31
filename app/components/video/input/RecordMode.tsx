@@ -2,20 +2,16 @@
 
 import { motion } from 'framer-motion';
 import { VideoRecorder } from '@/components/video/recorder/VideoRecorder';
+import { useVideo } from '@/context/video-context';
 
-interface RecordModeProps {
-  onRecordingComplete: (blob: Blob, duration: number) => void;
-  isRecording: boolean;
-  onStopRecording: () => void;
-  onStartRecording: () => void;
-}
-
-export const RecordMode = ({
-  onRecordingComplete,
-  isRecording,
-  onStopRecording,
-  onStartRecording
-}: RecordModeProps) => {
+export const RecordMode = () => {
+     const {
+    isRecording,
+    handleStartRecording,
+    handleStopRecording,
+    handleVideoRecorded,
+  } = useVideo();
+  
   return (
     <motion.div
       key="record-mode"
@@ -25,10 +21,10 @@ export const RecordMode = ({
     >
       <div className="aspect-video bg-black rounded-xl overflow-hidden">
         <VideoRecorder
-          onRecordingComplete={onRecordingComplete}
+          onRecordingComplete={handleVideoRecorded}
           isRecording={isRecording}
-          onStopRecording={onStopRecording}
-          onStartRecording={onStartRecording}
+          onStopRecording={handleStopRecording}
+          onStartRecording={handleStartRecording}
         />
       </div>
     </motion.div>

@@ -102,13 +102,45 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
   };
 
   // Function to generate GIF with current settings
-  const generateGif = async (inputFile: Blob) => {
+  const generateGif = async () => {
     try {
+      if (!videoBlob) {
+        console.log('No video available');
+        return;
+      }
+
+      // If frames are not ready yet, wait for them
+      if (frames.length === 0) {
+        console.log('Waiting for frames to be extracted...');
+        return;
+      }
+
       setIsProcessing(true);
       await loadFFmpeg();
       const ffmpeg = ffmpegRef.current!;
 
-      await ffmpeg.writeFile('input.webm', await fetchFile(inputFile));
+      // Create a temporary canvas for drawing frames
+      const canvas = document.createElement('canvas');
+      canvas.width = frames[0].width;
+      canvas.height = frames[0].height;
+
+      // Process each frame with its drawings
+      for (let i = 0; i < frames.length; i++) {
+        const frame = frames[i];
+        
+        // Draw frame using utility function
+        await drawFrameToCanvas(frame, canvas);
+
+        // Save frame to file
+        await new Promise<void>((resolve) => {
+          canvas.toBlob(async (blob) => {
+            if (blob) {
+              await ffmpeg.writeFile(`frame${i}.jpg`, await fetchFile(blob));
+              resolve();
+            }
+          }, 'image/jpeg');
+        });
+      }
 
       // Build the filter complex command
       const filterCommands = [];
@@ -124,14 +156,15 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
       }
 
       // Add standard GIF conversion filters
-      filterCommands.push('fps=10', 'scale=480:-1:flags=lanczos');
+      filterCommands.push('scale=480:-1:flags=lanczos');
 
       // Combine all filters
       const filterComplex = filterCommands.join(',');
 
-      // Execute FFmpeg command
+      // Create GIF from processed frames
       await ffmpeg.exec([
-        '-i', 'input.webm',
+        '-framerate', '10',
+        '-i', 'frame%d.jpg',
         '-vf', filterComplex,
         'output.gif'
       ]);
@@ -159,16 +192,23 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
       clearTimeout(previewTimeoutRef.current);
     }
 
-    previewTimeoutRef.current = setTimeout(() => {
-      generateGif(videoBlob);
-    }, 500);
+    // If frames aren't ready yet, retry after a delay
+    if (frames.length === 0) {
+      previewTimeoutRef.current = setTimeout(() => {
+        generateGif();
+      }, 1000); // Longer delay for initial frame extraction
+    } else {
+      previewTimeoutRef.current = setTimeout(() => {
+        generateGif();
+      }, 500);
+    }
 
     return () => {
       if (previewTimeoutRef.current) {
         clearTimeout(previewTimeoutRef.current);
       }
     };
-  }, [videoBlob, trimStart, trimEnd, crop, croppedVideoUrl]);
+  }, [videoBlob, trimStart, trimEnd, crop, croppedVideoUrl, frames.length]);
 
   // Recording Handlers
   const handleStartRecording = () => {
@@ -184,7 +224,7 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
     setIsRecording(false);
     setDuration(videoDuration);
     setTrimEnd(videoDuration);
-    generateGif(blob);
+    generateGif();
   };
 
   // File Upload Handler
@@ -203,7 +243,7 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
         setDuration(videoDuration);
         setTrimEnd(videoDuration);
         URL.revokeObjectURL(video.src);
-        generateGif(file);
+        generateGif();
       };
     }
   };
