@@ -1,12 +1,35 @@
 'use client';
 
-import { AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { VideoInput } from '@/components/video/input/VideoInput';
 import { VideoWorkspace } from '@/components/video/workspace/VideoWorkspace';
 import { useVideo } from '@/context/video-context';
 
+const ConversionAnimation = () => {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="flex flex-col items-center justify-center p-12"
+    >
+      <div className="relative">
+        <div className="w-12 h-12 border-4 border-rose-100 border-t-rose-500 rounded-full animate-spin" />
+      </div>
+      <motion.p 
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3 }}
+        className="text-gray-600 mt-4"
+      >
+        Processing video...
+      </motion.p>
+    </motion.div>
+  );
+};
+
 export default function Home() {
-  const { videoBlob } = useVideo();
+  const { processes: { isConverting }, videoBlob } = useVideo();
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-rose-50 to-white">
@@ -17,7 +40,13 @@ export default function Home() {
         </div>
 
         <AnimatePresence mode="wait">
-          {!videoBlob ? <VideoInput /> : <VideoWorkspace />}
+          {isConverting ? (
+            <ConversionAnimation />
+          ) : !videoBlob ? (
+            <VideoInput />
+          ) : (
+            <VideoWorkspace />
+          )}
         </AnimatePresence>
       </div>
     </main>

@@ -1,16 +1,16 @@
+import { useVideo } from '@/context/video-context';
 import { useState, useEffect, useRef } from 'react';
 
 interface CropBoxProps {
   aspectRatio?: number;
-  onChange: (crop: { x: number; y: number; width: number; height: number }) => void;
 }
 
-export const CropBox = ({ aspectRatio, onChange }: CropBoxProps) => {
+export const CropBox = ({ aspectRatio }: CropBoxProps) => {
+const { videoFilters: { crop: { coordinates } }, setCrop } = useVideo();
   const containerRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [activeCorner, setActiveCorner] = useState<'nw' | 'ne' | 'sw' | 'se' | null>(null);
-  const [crop, setCrop] = useState({ x: 20, y: 20, width: 60, height: 60 });
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -22,16 +22,15 @@ export const CropBox = ({ aspectRatio, onChange }: CropBoxProps) => {
 
       if (isDragging) {
         // Handle dragging
-        const newX = Math.min(Math.max(x - crop.width / 2, 0), 100 - crop.width);
-        const newY = Math.min(Math.max(y - crop.height / 2, 0), 100 - crop.height);
-        const newCrop = { ...crop, x: newX, y: newY };
+        const newX = Math.min(Math.max(x - coordinates.width / 2, 0), 100 - coordinates.width);
+        const newY = Math.min(Math.max(y - coordinates.height / 2, 0), 100 - coordinates.height);
+        const newCrop = { ...coordinates, x: newX, y: newY };
         setCrop(newCrop);
-        onChange(newCrop);
       } else if (isResizing && activeCorner) {
         // Handle resizing
         const minSize = 10;
         const maxSize = 100;
-        const currentCrop = { ...crop };
+        const currentCrop = { ...coordinates };
 
         switch (activeCorner) {
           case 'se': {
@@ -39,7 +38,6 @@ export const CropBox = ({ aspectRatio, onChange }: CropBoxProps) => {
             const height = aspectRatio ? width / aspectRatio : Math.min(Math.max(y - currentCrop.y, minSize), maxSize - currentCrop.y);
             const newCrop = { ...currentCrop, width, height };
             setCrop(newCrop);
-            onChange(newCrop);
             break;
           }
           case 'sw': {
@@ -49,7 +47,6 @@ export const CropBox = ({ aspectRatio, onChange }: CropBoxProps) => {
             const newX = currentCrop.x + currentCrop.width - width;
             const newCrop = { ...currentCrop, x: newX, width, height };
             setCrop(newCrop);
-            onChange(newCrop);
             break;
           }
           case 'ne': {
@@ -59,7 +56,6 @@ export const CropBox = ({ aspectRatio, onChange }: CropBoxProps) => {
             const newY = aspectRatio ? currentCrop.y + currentCrop.height - height : currentCrop.y + currentCrop.height - height;
             const newCrop = { ...currentCrop, width, height, y: newY };
             setCrop(newCrop);
-            onChange(newCrop);
             break;
           }
           case 'nw': {
@@ -71,7 +67,6 @@ export const CropBox = ({ aspectRatio, onChange }: CropBoxProps) => {
             const newY = currentCrop.y + currentCrop.height - height;
             const newCrop = { ...currentCrop, x: newX, y: newY, width, height };
             setCrop(newCrop);
-            onChange(newCrop);
             break;
           }
         }
@@ -93,7 +88,7 @@ export const CropBox = ({ aspectRatio, onChange }: CropBoxProps) => {
       window.removeEventListener('mouseup', handleMouseUp);
       window.removeEventListener('touchend', handleMouseUp);
     };
-  }, [isDragging, isResizing, activeCorner, crop, onChange, aspectRatio]);
+  }, [isDragging, isResizing, activeCorner, coordinates, aspectRatio]);
 
   return (
     <div ref={containerRef} className="relative w-full h-full">
@@ -104,10 +99,10 @@ export const CropBox = ({ aspectRatio, onChange }: CropBoxProps) => {
       <div
         className="absolute cursor-move border-2 border-white"
         style={{
-          left: `${crop.x}%`,
-          top: `${crop.y}%`,
-          width: `${crop.width}%`,
-          height: `${crop.height}%`,
+          left: `${coordinates.x}%`,
+          top: `${coordinates.y}%`,
+          width: `${coordinates.width}%`,
+          height: `${coordinates.height}%`,
         }}
         onMouseDown={(e) => {
           e.preventDefault();

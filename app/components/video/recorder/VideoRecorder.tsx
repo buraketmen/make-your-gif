@@ -167,7 +167,7 @@ export const VideoRecorder = ({
         onStopRecording();
       }
     }
-  }, [stream, onRecordingComplete, onStopRecording, isRecording, stopRecording]);
+  }, [stream, onStopRecording, isRecording, stopRecording]);
 
   const handleMouseMove = useCallback(() => {
     setIsControlsVisible(true);

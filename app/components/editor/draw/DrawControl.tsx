@@ -1,16 +1,16 @@
 'use client';
 
-import { useRef, useState, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { X, Check } from 'lucide-react';
 import { useVideo } from '@/context/video-context';
 import { Point, Drawing, DrawingFrame } from '@/types/draw';
-import { drawPath, extractFramesFromVideo } from '@/lib/utils';
+import { drawPath } from '@/lib/utils';
 import FrameGrid from './FrameGrid';
 
 
 export const DrawControl = () => {
-  const { videoBlob, croppedVideoUrl, frames, setFrames, selectedFrame, setSelectedFrame } = useVideo();
+  const { frames, setFrames, selectedFrame, setSelectedFrame } = useVideo();
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentColor, setCurrentColor] = useState('#FF0000');
   const [currentPoints, setCurrentPoints] = useState<Point[]>([]);
@@ -23,74 +23,6 @@ export const DrawControl = () => {
     { size: 8, name: 'Thick' },
     { size: 12, name: 'Extra Thick' },
   ];
-
-  // Extract frames from video
-  useEffect(() => {
-    if (!videoBlob) {
-      console.log('No videoBlob available');
-      return;
-    }
-
-    console.log('Starting frame extraction', { videoBlob, croppedVideoUrl });
-    const video = document.createElement('video');
-    
-    const handleVideoLoad = () => {
-      // Wait for metadata and ensure duration is valid
-      const waitForValidDuration = () => {
-        return new Promise<void>((resolve) => {
-          const checkDuration = () => {
-            if (video.duration && isFinite(video.duration) && video.videoWidth && video.videoHeight) {
-              resolve();
-            } else {
-              setTimeout(checkDuration, 50);
-            }
-          };
-          checkDuration();
-        });
-      };
-
-      waitForValidDuration()
-        .then(async () => {
-          console.log('Video loaded', { 
-            duration: video.duration, 
-            width: video.videoWidth, 
-            height: video.videoHeight,
-            readyState: video.readyState 
-          });
-          
-          try {
-            const fps = 10; // Increased to 10 frames per second for smoother animation
-            const maxFrames = 100; // Cap at 100 frames
-            const frames = await extractFramesFromVideo(video, fps, maxFrames);
-            console.log('Frame extraction complete', frames.length);
-            console.log({frames})
-            setFrames(frames);
-          } catch (error) {
-            console.error('Error extracting frames:', error);
-          } finally {
-            video.remove();
-          }
-        })
-        .catch(error => {
-          console.error('Error loading video:', error);
-          video.remove();
-        });
-    };
-
-    video.preload = "auto";
-    video.muted = true;
-    video.onloadeddata = handleVideoLoad;
-    video.onerror = (error) => {
-      console.error('Error loading video:', error);
-    };
-    
-    video.src = croppedVideoUrl || URL.createObjectURL(videoBlob);
-    video.load();
-
-    return () => {
-      video.remove();
-    };
-  }, [videoBlob, croppedVideoUrl]);
 
   // Handle drawing
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {

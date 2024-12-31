@@ -3,41 +3,50 @@
 import { useRef, useEffect } from 'react';
 import { useVideo } from '@/context/video-context';
 import { CropBox } from '../CropBox';
+import { Crop, Scissors } from 'lucide-react';
 
 export const VideoPreview = () => {
   const {
     videoBlob,
-    croppedVideoUrl,
-    isCropMode,
-    setCrop
+    videoFilters,
   } = useVideo();
 
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
-    if (!videoRef.current) return;
+    if (!videoRef.current || !videoBlob) return;
 
-    if (croppedVideoUrl) {
-      videoRef.current.src = croppedVideoUrl;
-    } else if (videoBlob) {
-      const videoUrl = URL.createObjectURL(videoBlob);
-      videoRef.current.src = videoUrl;
-      return () => URL.revokeObjectURL(videoUrl);
-    }
-  }, [videoBlob, croppedVideoUrl]);
+    const videoUrl = URL.createObjectURL(videoBlob);
+    videoRef.current.src = videoUrl;
+    return () => URL.revokeObjectURL(videoUrl);
+  }, [videoBlob]);
 
   return (
     <div className="aspect-video w-full rounded-lg overflow-hidden bg-gray-100 relative">
       <video
         ref={videoRef}
-        controls={!isCropMode}
+        controls={!videoFilters.crop.isCropMode}
         className="w-full h-full object-contain"
       />
-      {isCropMode && (
+      {videoFilters.crop.isCropMode && (
         <div className="absolute inset-0">
-          <CropBox onChange={setCrop} />
+          <CropBox  />
         </div>
       )}
+      <div className="absolute top-2 right-2 flex gap-2">
+        {videoFilters.crop.isActive && (
+          <div className="bg-black/50 text-white px-2 py-1 rounded-md flex items-center gap-1">
+            <Crop className="w-4 h-4" />
+            <span className="text-xs">Cropped</span>
+          </div>
+        )}
+        {videoFilters.trim.isActive && (
+          <div className="bg-black/50 text-white px-2 py-1 rounded-md flex items-center gap-1">
+            <Scissors className="w-4 h-4" />
+            <span className="text-xs">Trimmed</span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }; 

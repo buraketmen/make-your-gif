@@ -3,18 +3,15 @@
 import { Button } from "../ui/button";
 import { Crop, RotateCcw } from 'lucide-react';
 import { useVideo } from '@/context/video-context';
-import { CropBox } from '../CropBox';
 
 export const CropControl = () => {
   const {
-    isCropMode,
+    processes,
+    videoFilters,
     setIsCropMode,
-    croppedVideoUrl,
     handleCropVideo,
     handleResetCrop,
-    isProcessing,
-    setCrop,
-    videoBlob
+    
   } = useVideo();
 
   return (
@@ -24,7 +21,7 @@ export const CropControl = () => {
       </div>
 
       <div className="flex gap-4">
-        {isCropMode ? (
+        {videoFilters.crop.isCropMode ? (
           <>
             <Button
               onClick={() => setIsCropMode(false)}
@@ -36,11 +33,11 @@ export const CropControl = () => {
 
             <Button
               onClick={handleCropVideo}
-              disabled={isProcessing}
+              disabled={processes.isCropping}
               className="bg-rose-500 hover:bg-rose-600"
             >
               <Crop className="mr-2 h-4 w-4" />
-              {isProcessing ? 'Cropping...' : 'Apply Crop'}
+              {processes.isCropping ? 'Cropping...' : 'Apply Crop'}
             </Button>
           </>
         ) : (
@@ -53,7 +50,7 @@ export const CropControl = () => {
               Crop Video
             </Button>
 
-            {croppedVideoUrl && (
+            {videoFilters.crop.isActive && (
               <Button
                 onClick={handleResetCrop}
                 variant="outline"
