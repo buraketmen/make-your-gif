@@ -3,14 +3,12 @@
 import Image from 'next/image';
 import { Button } from "@/components/ui/button";
 import { Download } from 'lucide-react';
+import { useVideo } from '@/context/video-context';
 
-interface GifPreviewProps {
-  isProcessing: boolean;
-  gifUrl: string | null;
-  onDownload: () => void;
-}
 
-export const GifPreview = ({ isProcessing, gifUrl, onDownload }: GifPreviewProps) => {
+
+export const GifPreview = () => {
+    const { gifUrl, isProcessing, handleDownloadGif } = useVideo();
   return (
     <div className="flex flex-col h-full">
       <div className="aspect-video bg-black/5 rounded-xl overflow-hidden">
@@ -43,7 +41,7 @@ export const GifPreview = ({ isProcessing, gifUrl, onDownload }: GifPreviewProps
       <div className="w-full flex gap-4 mt-4">
         {gifUrl && (
           <Button
-            onClick={onDownload}
+            onClick={handleDownloadGif}
             className="w-full bg-rose-500 hover:bg-rose-600"
           >
             <Download className="mr-2 h-4 w-4" />

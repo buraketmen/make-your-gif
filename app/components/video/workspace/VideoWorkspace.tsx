@@ -2,19 +2,10 @@
 
 import { motion } from 'framer-motion';
 import { Card } from "@/components/ui/card";
-import { useVideo } from '@/context/video-context';
 import { EditorSection } from './EditorSection';
 import { GifPreview } from './GifPreview';
 
 export function VideoWorkspace() {
-  const {
-    mode,
-    handleBack,
-    gifUrl,
-    isProcessing,
-    handleDownloadGif
-  } = useVideo();
-
   return (
     <motion.div
       key="editor"
@@ -28,7 +19,7 @@ export function VideoWorkspace() {
         className="min-h-[600px] w-full"
       >
         <Card className="p-8 shadow-lg border-0 h-full">
-          <EditorSection mode={mode} onBack={handleBack} />
+          <EditorSection  />
         </Card>
       </motion.div>
 
@@ -43,9 +34,6 @@ export function VideoWorkspace() {
           </div>
 
           <GifPreview
-            isProcessing={isProcessing}
-            gifUrl={gifUrl}
-            onDownload={handleDownloadGif}
           />
         </Card>
       </motion.div>

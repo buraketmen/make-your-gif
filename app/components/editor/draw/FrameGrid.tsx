@@ -1,17 +1,17 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
-import { DrawingFrame } from './types';
-import { drawFrameToCanvas } from './utils';
+import { memo, useEffect, useRef } from 'react';
+import { DrawingFrame } from '@/types/draw';
+import { drawFrameToCanvas } from '@/lib/utils';
+import { useVideo } from '@/context/video-context';
 
-interface FrameGridProps {
+interface FrameProps {
   frame: DrawingFrame;
   index: number;
-  isSelected: boolean;
-  onSelect: (index: number) => void;
 }
 
-export const FrameGrid = ({ frame, index, isSelected, onSelect }: FrameGridProps) => {
+const Frame = ({ frame, index }: FrameProps) => {
+  const { selectedFrame, setSelectedFrame } = useVideo();
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -23,9 +23,9 @@ export const FrameGrid = ({ frame, index, isSelected, onSelect }: FrameGridProps
   return (
     <div
       className={`relative cursor-pointer border-2 ${
-        isSelected ? 'border-blue-500' : 'border-transparent'
+        selectedFrame ? 'border-blue-500' : 'border-transparent'
       }`}
-      onClick={() => onSelect(index)}
+      onClick={() => setSelectedFrame(frame)}
     >
       <canvas
         ref={canvasRef}
@@ -38,3 +38,16 @@ export const FrameGrid = ({ frame, index, isSelected, onSelect }: FrameGridProps
     </div>
   );
 }; 
+
+const FrameGrid = () => {
+    const { frames } = useVideo();
+  return (
+    <div className="grid grid-cols-4 gap-4">
+      {frames.map((frame, index) => (
+        <Frame key={index} frame={frame} index={index} />
+      ))}
+    </div>
+  );
+};
+
+export default memo(FrameGrid);

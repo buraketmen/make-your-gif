@@ -10,8 +10,12 @@ export interface Drawing {
 }
 
 export interface DrawingFrame {
+  id: number;
   imageData: string;
   drawings: Drawing[];
   width: number;
   height: number;
+  timestamp: number;
 } 
+
+export type Mode = 'record' | 'upload';

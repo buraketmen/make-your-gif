@@ -1,27 +1,10 @@
 "use client"
 import { createContext, useContext, useState, useRef, useEffect, ReactNode } from 'react';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
+import { DrawingFrame, Mode } from '@/types/draw';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
+import { drawFrameToCanvas } from '@/lib/utils';
 
-interface Point {
-  x: number;
-  y: number;
-}
-
-interface Drawing {
-  points: Point[];
-  color: string;
-  penSize: number;
-}
-
-interface DrawingFrame {
-  imageData: string;
-  drawings: Drawing[];
-  width: number;
-  height: number;
-}
-
-type Mode = 'record' | 'upload';
 
 interface VideoContextType {
   // Video States
@@ -52,6 +35,8 @@ interface VideoContextType {
   croppedVideoUrl: string | null;
   frames: DrawingFrame[];
   setFrames: (frames: DrawingFrame[] | ((prev: DrawingFrame[]) => DrawingFrame[])) => void;
+  selectedFrame: DrawingFrame | null;
+  setSelectedFrame: (frame: DrawingFrame | null) => void;
 
   // Handlers
   handleStartRecording: () => void;
@@ -97,6 +82,7 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
   const [isCropMode, setIsCropMode] = useState(false);
   const [croppedVideoUrl, setCroppedVideoUrl] = useState<string | null>(null);
   const [frames, setFrames] = useState<DrawingFrame[]>([]);
+  const [selectedFrame, setSelectedFrame] = useState<DrawingFrame | null>(null);
 
   // Refs
   const ffmpegRef = useRef<FFmpeg | null>(null);
@@ -125,7 +111,7 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
       await ffmpeg.writeFile('input.webm', await fetchFile(inputFile));
 
       // Build the filter complex command
-      let filterCommands = [];
+      const filterCommands = [];
       
       // Add trim filter if needed
       if (trimStart > 0 || trimEnd < duration) {
@@ -279,21 +265,7 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
     setCrop({ x: 20, y: 20, width: 60, height: 60 });
   };
 
-  const drawPath = (ctx: CanvasRenderingContext2D, points: Point[], color: string, size: number) => {
-    if (points.length < 2) return;
-    
-    ctx.beginPath();
-    ctx.strokeStyle = color;
-    ctx.lineWidth = size;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    
-    ctx.moveTo(points[0].x, points[0].y);
-    for (let i = 1; i < points.length; i++) {
-      ctx.lineTo(points[i].x, points[i].y);
-    }
-    ctx.stroke();
-  };
+
 
   // GIF Preview Update
   const updatePreview = async () => {
@@ -311,7 +283,6 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
 
         // Create a temporary canvas for drawing frames
         const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d')!;
         canvas.width = frames[0].width;
         canvas.height = frames[0].height;
 
@@ -319,27 +290,17 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
         for (let i = 0; i < frames.length; i++) {
           const frame = frames[i];
           
-          // Draw base image
+          // Draw frame using utility function
+          await drawFrameToCanvas(frame, canvas);
+
+          // Save frame to file
           await new Promise<void>((resolve) => {
-            const img = document.createElement('img');
-            img.onload = () => {
-              ctx.clearRect(0, 0, canvas.width, canvas.height);
-              ctx.drawImage(img, 0, 0);
-
-              // Draw all drawings for this frame
-              frame.drawings.forEach(drawing => {
-                drawPath(ctx, drawing.points, drawing.color, drawing.penSize);
-              });
-
-              // Save frame to file
-              canvas.toBlob(async (blob) => {
-                if (blob) {
-                  await ffmpeg.writeFile(`frame${i}.jpg`, await fetchFile(blob));
-                  resolve();
-                }
-              }, 'image/jpeg');
-            };
-            img.src = frame.imageData;
+            canvas.toBlob(async (blob) => {
+              if (blob) {
+                await ffmpeg.writeFile(`frame${i}.jpg`, await fetchFile(blob));
+                resolve();
+              }
+            }, 'image/jpeg');
           });
         }
 
@@ -425,6 +386,8 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
     croppedVideoUrl,
     frames,
     setFrames,
+    selectedFrame,
+    setSelectedFrame,
 
     // Handlers
     handleStartRecording,
