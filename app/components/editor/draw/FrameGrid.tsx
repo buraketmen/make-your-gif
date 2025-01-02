@@ -7,10 +7,9 @@ import { useVideo } from '@/context/video-context';
 
 interface FrameProps {
   frame: DrawingFrame;
-  index: number;
 }
 
-const Frame = ({ frame, index }: FrameProps) => {
+const Frame = ({ frame }: FrameProps) => {
   const { selectedFrame, setSelectedFrame } = useVideo();
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -33,18 +32,18 @@ const Frame = ({ frame, index }: FrameProps) => {
         style={{ aspectRatio: frame.width / frame.height }}
       />
       <div className="absolute bottom-0 right-0 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded-tl">
-        {index + 1}
+        {frame.id}
       </div>
     </div>
   );
 }; 
 
 const FrameGrid = () => {
-    const { frames } = useVideo();
+  const { frames } = useVideo();
   return (
     <div className="grid grid-cols-4 gap-4">
-      {frames.map((frame, index) => (
-        <Frame key={index} frame={frame} index={index} />
+      {frames.map((frame) => (
+        <Frame key={frame.id} frame={frame} />
       ))}
     </div>
   );

@@ -7,6 +7,7 @@ import { useVideo } from '@/context/video-context';
 import { Point, Drawing, DrawingFrame } from '@/types/draw';
 import { drawPath } from '@/lib/utils';
 import FrameGrid from './FrameGrid';
+import { DrawTools } from './DrawTools';
 
 
 export const DrawControl = () => {
@@ -16,13 +17,6 @@ export const DrawControl = () => {
   const [currentPoints, setCurrentPoints] = useState<Point[]>([]);
   const [penSize, setPenSize] = useState(2);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  const penTools = [
-    { size: 2, name: 'Fine' },
-    { size: 4, name: 'Medium' },
-    { size: 8, name: 'Thick' },
-    { size: 12, name: 'Extra Thick' },
-  ];
 
   // Handle drawing
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -104,7 +98,6 @@ export const DrawControl = () => {
   };
 
 
-  // Draw frame with previous frame's drawings and current drawing
   const drawFrame = (frame: DrawingFrame) => {
     const frameIndex = frames.findIndex((f) => f.id === frame.id);
     
@@ -148,20 +141,13 @@ export const DrawControl = () => {
     if (selectedFrame !== null) {
       drawFrame(selectedFrame);
     }
-  }, [selectedFrame, currentPoints]); // Add currentPoints dependency to redraw when it changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedFrame, currentPoints]);
 
   return (
     <div className="space-y-4 p-4 border rounded-lg bg-white/50">
       <div className="flex justify-between items-center text-sm font-medium">
         <span>Draw on Frames</span>
-        <div className="flex items-center gap-2">
-          <input
-            type="color"
-            value={currentColor}
-            onChange={(e) => setCurrentColor(e.target.value)}
-            className="w-8 h-8 rounded cursor-pointer"
-          />
-        </div>
       </div>
 
       {selectedFrame !== null ? (
@@ -182,24 +168,7 @@ export const DrawControl = () => {
                 />
               </div>
             </div>
-            <div className="w-24 space-y-2">
-              <div className="text-sm font-medium text-gray-600">Tools</div>
-              <div className="space-y-2">
-                {penTools.map((pen) => (
-                  <button
-                    key={pen.size}
-                    onClick={() => setPenSize(pen.size)}
-                    className={`w-full p-2 text-xs rounded-lg transition-all ${
-                      penSize === pen.size
-                        ? 'bg-rose-500 text-white'
-                        : 'bg-gray-100 hover:bg-gray-200 text-gray-600'
-                    }`}
-                  >
-                    {pen.name}
-                  </button>
-                ))}
-              </div>
-            </div>
+           <DrawTools currentColor={currentColor} setCurrentColor={setCurrentColor} penSize={penSize} setPenSize={setPenSize} />
           </div>
           <div className="flex justify-end gap-2">
             <Button
@@ -225,7 +194,6 @@ export const DrawControl = () => {
         </div>
       ) : (
         <FrameGrid />
-          
       )}
     </div>
   );
