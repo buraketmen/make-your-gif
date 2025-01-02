@@ -8,19 +8,19 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export const drawPath = (ctx: CanvasRenderingContext2D, points: Point[], color: string, size: number) => { 
-    if (points.length < 2) return;
+    if (!points || points.length < 2) return;
   
-  ctx.beginPath();
-  ctx.strokeStyle = color;
-  ctx.lineWidth = size;
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-  
-  ctx.moveTo(points[0].x, points[0].y);
-  for (let i = 1; i < points.length; i++) {
-    ctx.lineTo(points[i].x, points[i].y);
-  }
-  ctx.stroke();
+    ctx.beginPath();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = size;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) {
+      ctx.lineTo(points[i].x, points[i].y);
+    }
+    ctx.stroke();
 };
 
 export const drawFrameToCanvas = (frame: DrawingFrame, canvas: HTMLCanvasElement) => {

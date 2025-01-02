@@ -2,9 +2,9 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
-import { X, Check, Loader2 } from 'lucide-react';
+import { X, Check, Loader2, Undo, Redo, EraserIcon } from 'lucide-react';
 import { useVideo } from '@/context/video-context';
-import { Point, Drawing, DrawingFrame } from '@/types/draw';
+import { Drawing, DrawingFrame } from '@/types/draw';
 import { drawPath } from '@/lib/utils';
 import { DrawTools } from './DrawTools';
 
@@ -14,13 +14,54 @@ export const DrawFrame = () => {
   const [isDrawing, setIsDrawing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [currentColor, setCurrentColor] = useState('#FF0000');
-  const [currentPoints, setCurrentPoints] = useState<Point[]>([]);
+  const [currentPoints, setCurrentPoints] = useState<Drawing[]>([]);
+  const [drawingHistory, setDrawingHistory] = useState<Drawing[][]>([]);
+  const [redoHistory, setRedoHistory] = useState<Drawing[][]>([]);
   const [penSize, setPenSize] = useState(2);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  const clearAll = () => {
+    setDrawingHistory([]);
+    setRedoHistory([]);
+    setCurrentPoints([]);
+  }
+
+  // Reset history when frame changes
+  useEffect(() => {
+    clearAll();
+  }, [selectedFrame?.id]);
+
+  const undoLastDrawing = () => {
+    if (drawingHistory.length === 0) return;
+    
+    const newHistory = [...drawingHistory];
+    const lastDrawing = newHistory.pop();
+    setDrawingHistory(newHistory);
+    
+    if (lastDrawing) {
+      setRedoHistory(prev => [...prev, lastDrawing]);
+      setCurrentPoints(prev => prev.slice(0, -1));
+    }
+  };
+
+  const redoLastDrawing = () => {
+    if (redoHistory.length === 0) return;
+
+    const newRedoHistory = [...redoHistory];
+    const nextDrawing = newRedoHistory.pop();
+    setRedoHistory(newRedoHistory);
+
+    if (nextDrawing) {
+      setDrawingHistory(prev => [...prev, nextDrawing]);
+      setCurrentPoints(prev => [...prev, ...nextDrawing]);
+    }
+  };
 
   // Handle drawing
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!canvasRef.current || selectedFrame === null) return;
+    
+    setRedoHistory([]); // Clear redo history on new drawing
     
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
@@ -30,7 +71,11 @@ export const DrawFrame = () => {
     const y = (e.clientY - rect.top) * scaleY;
     
     setIsDrawing(true);
-    setCurrentPoints([{ x, y }]);
+    setCurrentPoints(prev => [...prev, {
+      points: [{ x, y }],
+      color: currentColor,
+      penSize: penSize
+    }]);
 
     // Start new path
     const ctx = canvas.getContext('2d')!;
@@ -43,7 +88,7 @@ export const DrawFrame = () => {
   };
 
   const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDrawing || !canvasRef.current || selectedFrame === null) return;
+    if (!isDrawing || !canvasRef.current || selectedFrame === null || currentPoints.length === 0) return;
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d')!;
@@ -53,7 +98,12 @@ export const DrawFrame = () => {
     const x = (e.clientX - rect.left) * scaleX;
     const y = (e.clientY - rect.top) * scaleY;
     
-    setCurrentPoints(prev => [...prev, { x, y }]);
+    setCurrentPoints(prev => {
+      const newPoints = [...prev];
+      const currentDrawing = newPoints[newPoints.length - 1];
+      currentDrawing.points = [...currentDrawing.points, { x, y }];
+      return newPoints;
+    });
     
     // Draw the line segment directly
     ctx.lineTo(x, y);
@@ -63,36 +113,36 @@ export const DrawFrame = () => {
   const endDrawing = () => {
     if (!isDrawing || selectedFrame === null) return;
     setIsDrawing(false);
+    // Add current drawing to history when finished
+    if (currentPoints.length > 0) {
+      const lastDrawing = currentPoints[currentPoints.length - 1];
+      if (lastDrawing.points.length >= 2) {
+        setDrawingHistory(prev => [...prev, [lastDrawing]]);
+      }
+    }
   };
 
   const saveDrawing = () => {
-    if (selectedFrame === null || currentPoints.length < 2) return;
-        setIsSaving(true);
+    if (selectedFrame === null || currentPoints.length === 0) return;
+    setIsSaving(true);
     setFrames((prev: DrawingFrame[]) => {
       const newFrames = [...prev];
-      const currentDrawing: Drawing = {
-        points: [...currentPoints],
-        color: currentColor,
-        penSize: penSize
-      };
-      
-      // Find the index of the frame we want to update
       const frameIndex = newFrames.findIndex((frame) => frame.id === selectedFrame.id);
       if (frameIndex !== -1) {
-        // Update the frame at the found index
         newFrames[frameIndex] = {
           ...selectedFrame,
-          drawings: [...selectedFrame.drawings, currentDrawing]
+          drawings: [...selectedFrame.drawings, ...currentPoints]
         };
       }
       return newFrames;
     });
     setIsSaving(false);
-    discardDrawing();
+    setCurrentPoints([]);
+    setSelectedFrame(null);
   };
 
   const discardDrawing = () => {
-    setCurrentPoints([]);
+    clearAll()
     setSelectedFrame(null);
   };
 
@@ -130,21 +180,34 @@ export const DrawFrame = () => {
 
       // Draw previous frame's drawings with reduced opacity
       if (frameIndex > 0) {
-        ctx.globalAlpha = 0.3;
-        frames[frameIndex-1].drawings.forEach(drawing => {
-            drawPath(ctx, drawing.points, drawing.color, drawing.penSize);
-        });
-        ctx.globalAlpha = 1;
+        const prevFrame = frames[frameIndex - 1];
+        if (prevFrame.drawings?.length > 0) {
+          ctx.globalAlpha = 0.3;
+          prevFrame.drawings.forEach(drawing => {
+            if (drawing?.points?.length >= 2) {
+              drawPath(ctx, drawing.points, drawing.color, drawing.penSize);
+            }
+          });
+          ctx.globalAlpha = 1;
+        }
       }
 
-      // Draw current frame's drawings
-      frame.drawings.forEach(drawing => {
-        drawPath(ctx, drawing.points, drawing.color, drawing.penSize);
-      });
+      // Draw current frame's saved drawings
+      if (frame.drawings?.length > 0) {
+        frame.drawings.forEach(drawing => {
+          if (drawing?.points?.length >= 2) {
+            drawPath(ctx, drawing.points, drawing.color, drawing.penSize);
+          }
+        });
+      }
 
-      // Draw current temp drawing if exists
-      if (currentPoints.length > 0) {
-        drawPath(ctx, currentPoints, currentColor, penSize);
+      // Draw current temp drawings if exists
+      if (currentPoints?.length > 0) {
+        currentPoints.forEach(drawing => {
+          if (drawing?.points?.length >= 2) {
+            drawPath(ctx, drawing.points, drawing.color, drawing.penSize);
+          }
+        });
       }
     };
 
@@ -164,8 +227,28 @@ export const DrawFrame = () => {
         <div className="space-y-4">
           <div className="flex gap-4">
             <div className="flex-1 space-y-2">
-              <div className="text-sm font-medium text-gray-600">
-                Frame {selectedFrame.id + 1}
+              <div className="text-sm font-medium text-gray-600 flex justify-between items-center">
+
+                <span>Frame {selectedFrame.id + 1}</span>
+                <div className='flex gap-2'>
+                    <Button
+                        onClick={undoLastDrawing}
+                        variant="ghost"
+                        size="sm"
+                        disabled={drawingHistory.length === 0}
+                    >
+                        <Undo className="h-3 w-3" />
+                    </Button>
+                    <Button
+                        onClick={redoLastDrawing}
+                        variant="ghost"
+                        size="sm"
+                        disabled={redoHistory.length === 0}
+                    >
+                        <Redo className="h-3 w-3" />
+                    </Button>
+                </div>
+
               </div>
               <div className="relative aspect-video bg-black/5 rounded-lg overflow-hidden flex items-center justify-center">
                 <canvas
@@ -181,16 +264,19 @@ export const DrawFrame = () => {
            <DrawTools currentColor={currentColor} setCurrentColor={setCurrentColor} penSize={penSize} setPenSize={setPenSize} />
           </div>
           <div className="flex justify-between gap-2">
-            <Button
-              onClick={clearDrawings}
-              variant="outline"
-              size="sm"
-              className="text-orange-600 gap-2"
-              disabled={selectedFrame.drawings.length === 0}
-            >
-              <X className="h-4 w-4 " />
-              Clear
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                onClick={clearDrawings}
+                variant="outline"
+                size="sm"
+                className="text-orange-600 gap-2"
+                disabled={selectedFrame.drawings.length === 0 && currentPoints.length === 0}
+              >
+                <EraserIcon className="h-4 w-4 " />
+                Clear
+              </Button>
+              
+            </div>
             <div className="flex gap-2">
               <Button
                 onClick={discardDrawing}
@@ -205,7 +291,7 @@ export const DrawFrame = () => {
                 variant="default"
                 size="sm"
                 className="bg-rose-500 hover:bg-rose-600 gap-2"
-                disabled={currentPoints.length < 2 || isSaving}
+                disabled={currentPoints.length < 1 || isSaving}
               >
                 {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                 {isSaving ? 'Saving...' : 'Save'}
