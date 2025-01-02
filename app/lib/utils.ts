@@ -53,18 +53,24 @@ export const drawFrameToCanvas = (frame: DrawingFrame, canvas: HTMLCanvasElement
 
 export const extractFramesFromVideo = (
   video: HTMLVideoElement,
-  fps: number = 5,
-  maxFrames: number = 100
+  fps: number = 24,
+  maxFrames: number = 100,
+  startTime?: number,
+  endTime?: number
 ): Promise<DrawingFrame[]> => {
   return new Promise(async (resolve, reject) => {
     try {
-      const frameCount = Math.min(Math.floor(video.duration * fps), maxFrames);
+      const effectiveStart = startTime ?? 0;
+      const effectiveEnd = endTime ?? video.duration;
       
+      // Use the same FPS throughout the video, just extract frames for the trimmed duration
       const videoFrames = await extractVideoFrames({
         video,
-        count: frameCount,
         format: 'image/jpeg',
-        quality: 0.95,
+        quality: 1,
+        startTime: effectiveStart,
+        endTime: effectiveEnd,
+        count: Math.min(Math.floor((effectiveEnd - effectiveStart) * fps), maxFrames),
         onProgress: (current, total) => {
           console.log(`Captured frame ${current}/${total} at ${video.currentTime.toFixed(2)}s`);
         }

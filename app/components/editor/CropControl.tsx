@@ -15,12 +15,8 @@ export const CropControl = () => {
   } = useVideo();
 
   return (
-    <div className="space-y-4 p-4 border rounded-lg bg-white/50">
-      <div className="flex justify-between text-sm font-medium">
-        <span>Crop Video</span>
-      </div>
-
-      <div className="flex gap-4">
+    <div className="w-full max-h-[600px]">
+      <div className="flex items-center justify-end gap-4">
         {videoFilters.crop.isCropMode ? (
           <>
             <Button
@@ -34,9 +30,9 @@ export const CropControl = () => {
             <Button
               onClick={handleCropVideo}
               disabled={processes.isCropping}
-              className="bg-rose-500 hover:bg-rose-600"
+              className="bg-rose-500 hover:bg-rose-600 gap-2"
             >
-              <Crop className="mr-2 h-4 w-4" />
+              <Crop className="h-4 w-4" />
               {processes.isCropping ? 'Cropping...' : 'Apply Crop'}
             </Button>
           </>
@@ -47,16 +43,16 @@ export const CropControl = () => {
               variant="outline"
             >
               <Crop className="mr-2 h-4 w-4" />
-              Crop Video
+              Crop
             </Button>
 
             {videoFilters.crop.isActive && (
               <Button
                 onClick={handleResetCrop}
                 variant="outline"
-                className="text-yellow-600"
+                className="text-yellow-600 gap-2"
               >
-                <RotateCcw className="mr-2 h-4 w-4" />
+                <RotateCcw className="h-4 w-4" />
                 Reset Crop
               </Button>
             )}

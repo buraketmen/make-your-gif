@@ -22,7 +22,7 @@ export const VideoPreview = () => {
   }, [videoBlob]);
 
   return (
-    <div className="aspect-video w-full rounded-lg overflow-hidden bg-gray-100 relative">
+    <div className="aspect-video w-full max-h-[600px] rounded-lg overflow-hidden bg-gray-100 relative">
       <video
         ref={videoRef}
         controls={!videoFilters.crop.isCropMode}

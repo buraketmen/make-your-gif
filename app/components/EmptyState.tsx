@@ -38,7 +38,7 @@ export const EmptyState = () => {
             <motion.div
               className="absolute inset-0 flex items-center justify-center"
               variants={iconVariants}
-              transition={{ delay: 0.2 }}
+              transition={{ delay: 0.1 }}
             >
               <Camera className="w-8 h-8 text-rose-500" />
             </motion.div>
@@ -46,7 +46,7 @@ export const EmptyState = () => {
             <motion.div
               className="absolute inset-0 flex items-center justify-start"
               variants={iconVariants}
-              transition={{ delay: 0.4 }}
+              transition={{ delay: 0.2 }}
             >
               <Upload className="w-8 h-8 text-rose-400" />
             </motion.div>
@@ -54,7 +54,7 @@ export const EmptyState = () => {
             <motion.div
               className="absolute inset-0 flex items-center justify-end"
               variants={iconVariants}
-              transition={{ delay: 0.6 }}
+              transition={{ delay: 0.3 }}
             >
               <Wand2 className="w-8 h-8 text-rose-300" />
             </motion.div>
@@ -63,7 +63,7 @@ export const EmptyState = () => {
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.8 }}
+            transition={{ delay: 0.4 }}
             className="text-center"
           >
             <h3 className="text-lg font-semibold text-gray-900 mb-1">

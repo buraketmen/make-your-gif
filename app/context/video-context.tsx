@@ -5,6 +5,10 @@ import { DrawingFrame, Mode } from '@/types/draw';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
 import { drawFrameToCanvas, extractFramesFromVideo } from '@/lib/utils';
 
+// Constants
+const TARGET_FPS = 24; // Base FPS
+const MAX_FRAMES = 60; // Maximum number of frames to extract
+
 interface VideoFilters {
   trim: {
     start: number;
@@ -30,6 +34,7 @@ interface VideoContextType {
   setVideoFilters: (filters: VideoFilters) => void;
   processes: {
     isConverting: boolean; // Used for converting recording to original size
+    isFrameExtracting: boolean;
     isCropping: boolean;
     isTrimming: boolean;
     isGeneratingGif: boolean;
@@ -98,6 +103,7 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
   });
   const [processes, setProcesses] = useState({
     isConverting: false,
+    isFrameExtracting: false,
     isCropping: false,
     isTrimming: false,
     isGeneratingGif: false,
@@ -204,9 +210,9 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
       // Combine all filters
       const filterComplex = filterCommands.join(',');
 
-      // Create GIF from processed frames
+      // Create GIF from processed frames using constant FPS
       await ffmpeg.exec([
-        '-framerate', '10',
+        '-framerate', TARGET_FPS.toString(),
         '-i', 'frame%d.jpg',
         '-vf', filterComplex,
         'output.gif'
@@ -374,28 +380,29 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
 
       waitForValidDuration()
         .then(async () => {
-          console.log('Video loaded', { 
-            duration: video.duration, 
-            width: video.videoWidth, 
-            height: video.videoHeight,
-            readyState: video.readyState 
-          });
-          
           try {
-            const fps = 10; // Increased to 10 frames per second for smoother animation
-            const frames = await extractFramesFromVideo(video, fps, 60);
-            console.log('Frame extraction complete', frames.length);
-            console.log({frames})
+            setProcesses(prev => ({ ...prev, isFrameExtracting: true }));
+            const frames = await extractFramesFromVideo(
+              video,
+              TARGET_FPS,
+              MAX_FRAMES,
+              videoFilters.trim.isActive ? videoFilters.trim.start : undefined,
+              videoFilters.trim.isActive ? videoFilters.trim.end : undefined
+            );
+            
             setFrames(frames);
           } catch (error) {
             console.error('Error extracting frames:', error);
           } finally {
+            setProcesses(prev => ({ ...prev, isFrameExtracting: false }));
             video.remove();
+            
           }
         })
         .catch(error => {
           console.error('Error loading video:', error);
           video.remove();
+          setProcesses(prev => ({ ...prev, isFrameExtracting: false }));
         });
     };
 
@@ -436,6 +443,8 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
       }
     });
     setProcesses({
+      isConverting: false,
+      isFrameExtracting: false,
       isCropping: false,
       isTrimming: false,
       isGeneratingGif: false,

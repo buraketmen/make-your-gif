@@ -27,9 +27,9 @@ export const UploadMode = () => {
           onClick={() => document.getElementById('video-input')?.click()}
           variant="outline"
           size="lg"
-          className="bg-white hover:bg-gray-50 shadow-sm"
+          className="bg-white hover:bg-gray-50 shadow-sm gap-2"
         >
-          <Upload className="w-5 h-5 mr-2 text-rose-500" />
+          <Upload className="w-5 h-5 text-rose-500" />
           Select Video
         </Button>
         <p className="mt-4 text-sm text-gray-500">
