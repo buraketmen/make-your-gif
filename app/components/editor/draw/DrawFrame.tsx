@@ -57,11 +57,10 @@ export const DrawFrame = () => {
     }
   };
 
-  // Handle drawing
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!canvasRef.current || selectedFrame === null) return;
     
-    setRedoHistory([]); // Clear redo history on new drawing
+    setRedoHistory([]); 
     
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
@@ -76,15 +75,6 @@ export const DrawFrame = () => {
       color: currentColor,
       penSize: penSize
     }]);
-
-    // Start new path
-    const ctx = canvas.getContext('2d')!;
-    ctx.beginPath();
-    ctx.strokeStyle = currentColor;
-    ctx.lineWidth = penSize;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.moveTo(x, y);
   };
 
   const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -105,15 +95,26 @@ export const DrawFrame = () => {
       return newPoints;
     });
     
-    // Draw the line segment directly
-    ctx.lineTo(x, y);
-    ctx.stroke();
+    ctx.beginPath();
+    ctx.strokeStyle = currentColor;
+    ctx.lineWidth = penSize;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    const currentDrawing = currentPoints[currentPoints.length - 1];
+    const points = currentDrawing.points;
+    
+    if (points.length >= 2) {
+      const lastPoint = points[points.length - 2];
+      ctx.moveTo(lastPoint.x, lastPoint.y);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+    }
   };
 
   const endDrawing = () => {
     if (!isDrawing || selectedFrame === null) return;
     setIsDrawing(false);
-    // Add current drawing to history when finished
     if (currentPoints.length > 0) {
       const lastDrawing = currentPoints[currentPoints.length - 1];
       if (lastDrawing.points.length >= 2) {
@@ -178,7 +179,6 @@ export const DrawFrame = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0);
 
-      // Draw previous frame's drawings with reduced opacity
       if (frameIndex > 0) {
         const prevFrame = frames[frameIndex - 1];
         if (prevFrame.drawings?.length > 0) {
@@ -192,7 +192,6 @@ export const DrawFrame = () => {
         }
       }
 
-      // Draw current frame's saved drawings
       if (frame.drawings?.length > 0) {
         frame.drawings.forEach(drawing => {
           if (drawing?.points?.length >= 2) {
@@ -201,7 +200,6 @@ export const DrawFrame = () => {
         });
       }
 
-      // Draw current temp drawings if exists
       if (currentPoints?.length > 0) {
         currentPoints.forEach(drawing => {
           if (drawing?.points?.length >= 2) {
@@ -222,13 +220,20 @@ export const DrawFrame = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFrame, currentPoints]);
 
+  useEffect(() => {
+    const drawFrame = document.getElementById('draw-frame');
+    if (drawFrame) {
+      drawFrame.setAttribute('data-has-unsaved', currentPoints.length > 0 ? "true" : "false");
+    }
+  }, [currentPoints]);
+
   if (selectedFrame === null) return null;
+
   return (
-        <div className="space-y-4">
+        <div id="draw-frame" className="space-y-4">
           <div className="flex gap-4">
             <div className="flex-1 space-y-2">
               <div className="text-sm font-medium text-gray-600 flex justify-between items-center">
-
                 <span>Frame {selectedFrame.id + 1}</span>
                 <div className='flex gap-2'>
                     <Button
@@ -248,16 +253,22 @@ export const DrawFrame = () => {
                         <Redo className="h-3 w-3" />
                     </Button>
                 </div>
-
               </div>
-              <div className="relative aspect-video bg-black/5 rounded-lg overflow-hidden flex items-center justify-center">
+              <div 
+                className="relative bg-black/5 rounded-lg overflow-hidden flex items-center justify-center max-h-[600px]"
+                style={{ 
+                  aspectRatio: selectedFrame ? `${selectedFrame.width}/${selectedFrame.height}` : '16/9',
+                  width: '100%',
+                  maxHeight: 480
+                }}
+              >
                 <canvas
                   ref={canvasRef}
                   onMouseDown={startDrawing}
                   onMouseMove={draw}
                   onMouseUp={endDrawing}
                   onMouseLeave={endDrawing}
-                  className="w-full h-full cursor-crosshair"
+                  className="w-full h-full cursor-crosshair object-contain"
                 />
               </div>
             </div>

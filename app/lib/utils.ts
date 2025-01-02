@@ -7,6 +7,46 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+interface CropCoordinates {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+interface CropDimensions {
+  pixels: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+  ffmpegFilter: string;
+  relativeFilter: string;
+}
+
+export const calculateCropDimensions = (
+  coordinates: CropCoordinates,
+  videoWidth: number,
+  videoHeight: number
+): CropDimensions => {
+  const cropX = Math.round((coordinates.x / 100) * videoWidth);
+  const cropY = Math.round((coordinates.y / 100) * videoHeight);
+  const cropWidth = Math.round((coordinates.width / 100) * videoWidth);
+  const cropHeight = Math.round((coordinates.height / 100) * videoHeight);
+
+  return {
+    pixels: {
+      x: cropX,
+      y: cropY,
+      width: cropWidth,
+      height: cropHeight
+    },
+    ffmpegFilter: `crop=${cropWidth}:${cropHeight}:${cropX}:${cropY}`,
+    relativeFilter: `crop=iw*${coordinates.width/100}:ih*${coordinates.height/100}:iw*${coordinates.x/100}:ih*${coordinates.y/100}`
+  };
+};
+
 export const drawPath = (ctx: CanvasRenderingContext2D, points: Point[], color: string, size: number) => { 
     if (!points || points.length < 2) return;
   
@@ -34,7 +74,6 @@ export const drawFrameToCanvas = (frame: DrawingFrame, canvas: HTMLCanvasElement
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0);
 
-      // Draw all drawings for this frame
       frame.drawings.forEach(drawing => {
         drawPath(ctx, drawing.points, drawing.color, drawing.penSize);
       });
@@ -63,7 +102,6 @@ export const extractFramesFromVideo = (
       const effectiveStart = startTime ?? 0;
       const effectiveEnd = endTime ?? video.duration;
       
-      // Use the same FPS throughout the video, just extract frames for the trimmed duration
       const videoFrames = await extractVideoFrames({
         video,
         format: 'image/jpeg',
@@ -78,7 +116,6 @@ export const extractFramesFromVideo = (
 
       const drawingFrames = convertToDrawingFrames(videoFrames);
       
-      // Get dimensions from the first frame's image
       if (drawingFrames.length > 0) {
         const img = document.createElement('img');
         await new Promise<void>((resolve, reject) => {

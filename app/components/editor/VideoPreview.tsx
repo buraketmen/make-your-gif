@@ -2,7 +2,7 @@
 
 import { useRef, useEffect } from 'react';
 import { useVideo } from '@/context/video-context';
-import { CropBox } from '../CropBox';
+import { CropBox } from '@/components/editor/crop/CropBox';
 import { Crop, Scissors } from 'lucide-react';
 
 export const VideoPreview = () => {

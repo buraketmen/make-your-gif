@@ -1,5 +1,5 @@
 import { useVideo } from '@/context/video-context';
-import FrameGrid from './FrameGrid';
+import FrameGrid from '@/components/editor/FrameGrid';
 import { DrawFrame } from './DrawFrame';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -38,7 +38,6 @@ export const DrawControl = () => {
           {selectedFrame && (
             <motion.div
               layout
-              key="draw-frame"
               initial={{ opacity: 1, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}

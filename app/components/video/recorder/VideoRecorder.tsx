@@ -6,23 +6,18 @@ import { RecordingProgress } from './RecordingProgress';
 import { RecordingControls } from './RecordingControls';
 import { CameraError } from './CameraError';
 import { RecordingIndicator } from './RecordingIndicator';
+import { useVideo } from '@/context/video-context';
 
 const MAX_RECORDING_DURATION = 15; // seconds
 
-interface VideoRecorderProps {
-  onRecordingComplete: (blob: Blob, duration: number) => void;
-  isRecording: boolean;
-  onStopRecording: () => void;
-  onStartRecording: () => void;
-}
-
-export const VideoRecorder = ({ 
-  onRecordingComplete, 
-  isRecording, 
-  onStopRecording,
-  onStartRecording 
-}: VideoRecorderProps) => {
-
+export const VideoRecorder = () => {
+    const {
+        isRecording,
+        isMirrored,
+        handleStartRecording,
+        handleStopRecording,
+        handleVideoRecorded,
+    } = useVideo();
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [permissionError, setPermissionError] = useState<string | null>(null);
   const [isControlsVisible, setIsControlsVisible] = useState(true);
@@ -50,7 +45,6 @@ export const VideoRecorder = ({
       setStream(mediaStream);
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
-        // Wait for video metadata to load
         await new Promise<void>((resolve) => {
           if (!videoRef.current) return;
           if (videoRef.current.readyState >= 2) {
@@ -85,12 +79,14 @@ export const VideoRecorder = ({
         stream.getTracks().forEach(track => track.stop());
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     if (isRecording && stream) {
       startRecording();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isRecording]);
 
   const stopRecording = useCallback(() => {
@@ -98,27 +94,57 @@ export const VideoRecorder = ({
       const finalTime = recordingTime;
       mediaRecorderRef.current.requestData();
       mediaRecorderRef.current.stop();
-      onStopRecording();
+      handleStopRecording();
       
       mediaRecorderRef.current.onstop = () => {
         const blob = new Blob(chunksRef.current, { 
           type: 'video/webm;codecs=h264' 
         });
-        onRecordingComplete(blob, finalTime);
+        handleVideoRecorded(blob, finalTime);
       };
     }
-  }, [onStopRecording, onRecordingComplete, recordingTime]);
+  }, [handleStopRecording, handleVideoRecorded, recordingTime]);
 
   const startRecording = useCallback(() => {
-    if (!stream) return;
+    if (!stream || !videoRef.current) return;
 
     try {
+      let recordingStream = stream;
+
+      if (isMirrored) {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d')!;
+        
+        canvas.width = videoRef.current.videoWidth;
+        canvas.height = videoRef.current.videoHeight;
+
+        ctx.scale(-1, 1);
+        ctx.translate(-canvas.width, 0);
+
+        const canvasStream = canvas.captureStream();
+        const audioTrack = stream.getAudioTracks()[0];
+        if (audioTrack) {
+          canvasStream.addTrack(audioTrack);
+        }
+
+        const drawFrame = () => {
+          if (!videoRef.current) return;
+          ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+          if (mediaRecorderRef.current?.state === 'recording') {
+            requestAnimationFrame(drawFrame);
+          }
+        };
+
+        recordingStream = canvasStream;
+        requestAnimationFrame(drawFrame);
+      }
+
       const options = { 
         mimeType: 'video/webm;codecs=h264',
-        videoBitsPerSecond: 2500000 // 2.5 Mbps for better quality
+        videoBitsPerSecond: 2500000
       };
 
-      const mediaRecorder = new MediaRecorder(stream, options);
+      const mediaRecorder = new MediaRecorder(recordingStream, options);
       mediaRecorderRef.current = mediaRecorder;
       chunksRef.current = [];
 
@@ -128,7 +154,6 @@ export const VideoRecorder = ({
         }
       };
 
-      // Request data every second for more reliable recording
       mediaRecorder.start(1000);
 
       setTimeout(() => {
@@ -138,7 +163,6 @@ export const VideoRecorder = ({
       }, MAX_RECORDING_DURATION * 1000);
     } catch (error) {
       console.error('Error starting recording:', error);
-      // Try fallback codec if h264 is not supported
       try {
         const fallbackOptions = { 
           mimeType: 'video/webm',
@@ -164,10 +188,10 @@ export const VideoRecorder = ({
       } catch (fallbackError) {
         console.error('Error with fallback recording:', fallbackError);
         setPermissionError('Failed to start recording. Your browser might not support video recording.');
-        onStopRecording();
+        handleStopRecording();
       }
     }
-  }, [stream, onStopRecording, isRecording, stopRecording]);
+  }, [stream, handleStopRecording, isRecording, stopRecording, isMirrored]);
 
   const handleMouseMove = useCallback(() => {
     setIsControlsVisible(true);
@@ -221,7 +245,7 @@ export const VideoRecorder = ({
         autoPlay
         playsInline
         muted
-        className="w-full h-full object-cover rounded-lg"
+        className={`w-full h-full object-cover rounded-lg ${isMirrored ? 'scale-x-[-1]' : ''}`}
       />
       
       <AnimatePresence>
@@ -241,7 +265,7 @@ export const VideoRecorder = ({
         {(isControlsVisible || isRecording) && (
           <RecordingControls
             isRecording={isRecording}
-            onStartRecording={onStartRecording}
+            onStartRecording={handleStartRecording}
             onStopRecording={stopRecording}
           />
         )}
