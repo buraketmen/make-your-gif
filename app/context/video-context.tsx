@@ -152,13 +152,11 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
   // Generate GIF function
   const generateGif = useCallback(async () => {
     if (!videoBlob) {
-      console.log('No video available');
       return;
     }
 
     // If frames are not ready yet, wait for them
     if (frames.length === 0) {
-      console.log('Waiting for frames to be extracted...');
       return;
     }
 
@@ -356,11 +354,9 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
   // Frame extraction function
   const extractFramesForVideo = async (blob: Blob) => {
     if (!blob) {
-      console.log('No video blob available');
       return;
     }
 
-    console.log('Starting frame extraction');
     const video = document.createElement('video');
     
     const handleVideoLoad = () => {
@@ -456,7 +452,6 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
   // Video Crop Handler
   const handleCropVideo = async () => {
     if (!baseVideoBlob) return;
-    console.log('Cropping video....');
     try {
       setProcesses(prev => ({ ...prev, isCropping: true }));
       await loadFFmpeg();

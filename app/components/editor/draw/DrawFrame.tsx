@@ -219,12 +219,19 @@ export const DrawFrame = () => {
     if (selectedFrame !== null) {
       drawFrame(selectedFrame);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFrame, currentPoints]);
 
+  useEffect(() => {
+    const drawFrame = document.getElementById('draw-frame');
+    if (drawFrame) {
+      drawFrame.setAttribute('data-has-unsaved', currentPoints.length > 0 ? "true" : "false");
+    }
+  }, [currentPoints]);
+
   if (selectedFrame === null) return null;
+
   return (
-        <div className="space-y-4">
+        <div id="draw-frame" className="space-y-4">
           <div className="flex gap-4">
             <div className="flex-1 space-y-2">
               <div className="text-sm font-medium text-gray-600 flex justify-between items-center">

@@ -35,17 +35,14 @@ export const extractVideoFrames = async (options: VideoFrameOptions): Promise<Vi
     throw new Error('Video dimensions not available');
   }
 
-  // Wait for video metadata to load if duration is not available
   while ((video.duration === Infinity || isNaN(video.duration)) && video.readyState < 2) {
     await new Promise(resolve => setTimeout(resolve, 100));
   }
 
-  // Set default end time after duration is available
   if (!settings.endTime) {
     settings.endTime = video.duration;
   }
 
-  // Validate timestamps
   settings.startTime = Math.max(0, Math.min(settings.startTime!, video.duration));
   settings.endTime = Math.max(settings.startTime, Math.min(settings.endTime, video.duration));
   
@@ -58,7 +55,6 @@ export const extractVideoFrames = async (options: VideoFrameOptions): Promise<Vi
     settings.count = settings.offsets.length;
   }
 
-  // Ensure count is valid
   settings.count = Math.max(1, Math.floor(settings.count!));
 
   // Calculate interval between frames
@@ -93,7 +89,6 @@ export const extractVideoFrames = async (options: VideoFrameOptions): Promise<Vi
   const frames: VideoFrameResult[] = [];
   let seekResolve: (() => void) | null = null;
 
-  // Set up video event handlers
   const onSeeked = () => {
     if (seekResolve) {
       seekResolve();
@@ -108,7 +103,6 @@ export const extractVideoFrames = async (options: VideoFrameOptions): Promise<Vi
         ? settings.offsets![i]
         : settings.startTime! + i * interval;
 
-      // Seek to target time
       video.currentTime = targetTime;
       await new Promise<void>(resolve => {
         seekResolve = resolve;
@@ -122,7 +116,6 @@ export const extractVideoFrames = async (options: VideoFrameOptions): Promise<Vi
         image: canvas.toDataURL(settings.format, settings.quality)
       });
 
-      // Report progress
       if (settings.onProgress) {
         settings.onProgress(i + 1, settings.count);
       }
@@ -139,8 +132,8 @@ export const convertToDrawingFrames = (videoFrames: VideoFrameResult[]): Drawing
     id: index,
     imageData: frame.image,
     drawings: [],
-    width: 0, // Will be set when image loads
-    height: 0, // Will be set when image loads
+    width: 0,
+    height: 0, 
     timestamp: frame.offset
   }));
 }; 
