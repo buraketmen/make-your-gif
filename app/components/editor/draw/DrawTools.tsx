@@ -1,46 +1,57 @@
 'use client';
 
-interface DrawToolsProps {
-  currentColor: string;
-  setCurrentColor: (color: string) => void;
-  penSize: number;
-  setPenSize: (size: number) => void;
-}
+import { useDraw } from "@/context/draw-context";
+import { DRAWING_TOOLS } from "@/types/draw";
+import { Slider } from "@/components/ui/slider";
 
-export const DrawTools = ({ currentColor, setCurrentColor, penSize, setPenSize }: DrawToolsProps) => {
-  const penTools = [
-    { size: 2, name: 'Fine' },
-    { size: 4, name: 'Medium' },
-    { size: 8, name: 'Thick' },
-    { size: 12, name: 'Extra Thick' },
-  ];
+export const DrawTools = () => {
+  const { currentColor, setCurrentColor, penSize, setPenSize, currentTool, setCurrentTool } = useDraw();
 
   return (
-     <div className="w-24 space-y-2">
-        <div className="flex flex-col items-end gap-2">
+    <div className="w-24 space-y-4">
+      <div className="flex flex-col items-end gap-2">
         <input
-            type="color"
-            value={currentColor}
-            onChange={(e) => setCurrentColor(e.target.value)}
-            className="w-full max-w-8 h-8 cursor-pointer rounded-lg"
+          type="color"
+          value={currentColor}
+          onChange={(e) => setCurrentColor(e.target.value)}
+          className="w-full max-w-8 h-8 cursor-pointer rounded-lg"
         />
-        </div>
+      </div>
 
-        <div className="space-y-2">
-        {penTools.map((pen) => (
+      <div className="space-y-2">
+        <div className="text-xs font-medium text-gray-600 mb-1">Tools</div>
+        <div className="grid grid-cols-1 gap-1">
+          {Object.values(DRAWING_TOOLS).map((tool) => (
             <button
-            key={pen.size}
-            onClick={() => setPenSize(pen.size)}
-            className={`w-full p-2 text-xs rounded-lg transition-all ${
-                penSize === pen.size
-                ? 'bg-rose-500 text-white'
-                : 'bg-gray-100 hover:bg-gray-200 text-gray-600'
-            }`}
+              key={tool.id}
+              onClick={() => setCurrentTool(tool.id)}
+              className={`p-2 text-xs rounded-lg transition-all flex items-center gap-1 ${
+                currentTool === tool.id
+                  ? 'bg-rose-500 text-white'
+                  : 'bg-gray-100 hover:bg-gray-200 text-gray-600'
+              }`}
             >
-            {pen.name}
+              <tool.icon className="h-3 w-3" />
+              {tool.name}
             </button>
-        ))}
+          ))}
         </div>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <div className="text-xs font-medium text-gray-600">Size</div>
+          <div className="text-xs font-medium text-gray-500">{penSize}</div>
+        </div>
+        <Slider
+          value={[penSize]}
+          onValueChange={(value) => setPenSize(value[0])}
+          min={2}
+          max={32}
+          step={1}
+          className="w-full"
+        />
+      </div>
     </div>
   );
 }; 

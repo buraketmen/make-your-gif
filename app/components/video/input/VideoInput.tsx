@@ -9,6 +9,7 @@ import { UploadMode } from './UploadMode';
 
 export function VideoInput() {
   const {
+    isRecording,
     mode,
     setMode,
   } = useVideo();
@@ -23,7 +24,7 @@ export function VideoInput() {
     >
       <Card className="p-6 shadow-lg border-0">
         <div className="mb-6 flex justify-center">
-          <SegmentedControl mode={mode} onChange={setMode} />
+          <SegmentedControl mode={mode} onChange={setMode} disabled={isRecording} />
         </div>
 
         <AnimatePresence mode="wait">

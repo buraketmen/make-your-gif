@@ -26,7 +26,7 @@ export const VideoPreview = () => {
       <video
         ref={videoRef}
         controls={!videoFilters.crop.isCropMode}
-        className="w-full h-full object-contain"
+        className="w-full h-full object-contain shadow-[inset_0_0_5px_rgba(0,0,0,0.3),_0_0_5px_rgba(0,0,0,0.2)]"
       />
       {videoFilters.crop.isCropMode && (
         <div className="absolute inset-0">

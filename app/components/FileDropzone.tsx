@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Button } from "@/components/ui/button";
-import { Upload, X } from 'lucide-react';
+import { Upload } from 'lucide-react';
 
 interface FileDropzoneProps {
   onFileSelected: (file: File) => void;

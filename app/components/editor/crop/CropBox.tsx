@@ -88,6 +88,7 @@ const { videoFilters: { crop: { coordinates } }, setCrop } = useVideo();
       window.removeEventListener('mouseup', handleMouseUp);
       window.removeEventListener('touchend', handleMouseUp);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDragging, isResizing, activeCorner, coordinates, aspectRatio]);
 
   return (

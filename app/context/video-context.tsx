@@ -5,8 +5,7 @@ import { DrawingFrame, Mode } from '@/types/draw';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
 import { drawFrameToCanvas, extractFramesFromVideo, calculateCropDimensions } from '@/lib/utils';
 
-const TARGET_FPS = 24;
-const MAX_FRAMES = 60; 
+const TARGET_FPS = 30;
 
 interface VideoFilters {
   trim: {
@@ -24,6 +23,10 @@ interface VideoFilters {
 
 interface VideoContextType {
   lastUpdatedAt: number;
+  cameras: MediaDeviceInfo[];
+  setCameras: (cameras: MediaDeviceInfo[]) => void;
+  currentCameraId: string | null;
+  onCameraChange: (cameraId: string) => void;
   baseVideoBlob: Blob | null;
   setBaseVideoBlob: (blob: Blob | null) => void;
   videoBlob: Blob | null;
@@ -36,6 +39,10 @@ interface VideoContextType {
     isCropping: boolean;
     isTrimming: boolean;
     isGeneratingGif: boolean;
+  },
+  frameProgress: {
+    current: number;
+    total: number;
   },
   isRecording: boolean;
   setIsRecording: (value: boolean) => void;
@@ -65,6 +72,8 @@ interface VideoContextType {
   handleCropVideo: () => Promise<void>;
   handleResetCrop: () => void;
   handleDownloadGif: () => void;
+  gifSize: number;
+  setGifSize: (size: number) => void;
 }
 
 const VideoContext = createContext<VideoContextType | null>(null);
@@ -86,6 +95,8 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
   const [lastUpdatedAt, setLastUpdatedAt] = useState<number>(0);
   const [baseVideoBlob, setBaseVideoBlob] = useState<Blob | null>(null);
   const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
+  const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
+  const [currentCameraId, setCurrentCameraId] = useState<string | null>(null);
   const [videoFilters, setVideoFilters] = useState({
     trim: {
       start: 0,
@@ -105,6 +116,10 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
     isTrimming: false,
     isGeneratingGif: false,
   });
+  const [frameProgress, setFrameProgress] = useState({
+    current: 0,
+    total: 0,
+  });
   const [isRecording, setIsRecording] = useState(false);
   const [mode, setMode] = useState<Mode>('record');
   const [isMirrored, setIsMirrored] = useState(true);
@@ -114,12 +129,19 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
   const [duration, setDuration] = useState(0);
   const [frames, setFrames] = useState<DrawingFrame[]>([]);
   const [selectedFrame, setSelectedFrame] = useState<DrawingFrame | null>(null);
+  const [gifSize, setGifSize] = useState(480);
   
   useEffect(() => {
     if (videoFilters.crop.isActive === false && videoFilters.trim.isActive === false) {
       setVideoBlob(baseVideoBlob);
     }
   }, [baseVideoBlob, videoFilters.crop.isActive, videoFilters.trim.isActive]);
+
+  useEffect(() => {
+    if (cameras.length > 0) {
+      onCameraChange(cameras[0].deviceId);
+    }
+  }, [cameras]);
 
   const loadFFmpeg = useCallback(async () => {
     if (!ffmpegRef.current) {
@@ -133,6 +155,10 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
     }
   }, [ffmpegRef]);
 
+  const onCameraChange = (cameraId: string) => {
+    setCurrentCameraId(cameraId);
+  };
+
     const handleGifUrlChange = useCallback((newUrl: string | null) => {
         if (gifUrl) {
         URL.revokeObjectURL(gifUrl);
@@ -141,11 +167,7 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
     }, [gifUrl]);
 
   const generateGif = useCallback(async () => {
-    if (!videoBlob) {
-      return;
-    }
-
-    if (frames.length === 0) {
+    if (!videoBlob || frames.length === 0) {
       return;
     }
 
@@ -175,7 +197,7 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
       if (videoFilters.trim.isActive) {
         filterCommands.push(`trim=start=${videoFilters.trim.start}:end=${videoFilters.trim.end}`);
       }
-      filterCommands.push('scale=480:-1:flags=lanczos');
+      filterCommands.push(`scale=${gifSize}:-1:flags=lanczos`);
       const filterComplex = filterCommands.join(',');
 
       await ffmpeg.exec([
@@ -194,7 +216,7 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
     } finally {
       setProcesses(prev => ({ ...prev, isGeneratingGif: false }));
     }
-  }, [videoBlob, frames, videoFilters, loadFFmpeg, handleGifUrlChange]);
+  }, [videoBlob, frames, videoFilters, loadFFmpeg, handleGifUrlChange, gifSize]);
 
   useEffect(() => {
     if (!videoBlob || frames.length === 0) return;
@@ -205,7 +227,7 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
 
     return () => clearTimeout(timeoutId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [videoBlob, frames,  lastUpdatedAt]);
+  }, [videoBlob, frames, lastUpdatedAt, gifSize]);
 
   useEffect(() => {
     return () => {
@@ -344,9 +366,11 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
             const frames = await extractFramesFromVideo(
               video,
               TARGET_FPS,
-              MAX_FRAMES,
               videoFilters.trim.isActive ? videoFilters.trim.start : undefined,
-              videoFilters.trim.isActive ? videoFilters.trim.end : undefined
+              videoFilters.trim.isActive ? videoFilters.trim.end : undefined,
+              (current, total) => {
+                setFrameProgress({ current, total });
+              }
             );
             
             setFrames(frames);
@@ -520,10 +544,15 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
     lastUpdatedAt,
     gifUrl,
     processes,
+    frameProgress,
     duration,
     setDuration,
     mode,
     setMode,
+    cameras,
+    setCameras,
+    currentCameraId,
+    onCameraChange,
     baseVideoBlob,
     setBaseVideoBlob,
     videoBlob,
@@ -561,7 +590,9 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
     handleBack,
     handleCropVideo,
     handleResetCrop,
-    handleDownloadGif
+    handleDownloadGif,
+    gifSize,
+    setGifSize,
   };
 
   return (

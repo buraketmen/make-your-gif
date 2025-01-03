@@ -23,6 +23,20 @@ interface FrameProps {
   onFrameSelect: (frame: DrawingFrame) => void;
 }
 
+const FrameSpinnerText = () => {
+    const { frameProgress  } = useVideo();
+    return <p className="text-sm text-gray-500">Extracting frames... {frameProgress.current}/{frameProgress.total ?? 1}</p>
+}
+
+const FrameSpinner = () => {
+  return (
+    <div className="col-span-full h-[280px] w-full flex flex-col items-center justify-center gap-2">
+      <Spinner size={12} />
+      <FrameSpinnerText />
+    </div>
+  );
+}
+
 const Frame = forwardRef<HTMLDivElement, FrameProps>(({ frame, onFrameSelect }, ref) => {
   const { selectedFrame } = useVideo();
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -105,17 +119,10 @@ const FrameGrid = () => {
     ? 'max-h-[280px] grid grid-cols-1 lg:grid-cols-4 xl:grid-cols-6 gap-4 overflow-y-auto xl:max-h-[440px]' 
     : 'max-h-[320px] grid grid-cols-4 lg:grid-cols-8 xl:grid-cols-12 gap-4 overflow-y-auto';
 
-  const spinnerClass = selectedFrame 
-    ? 'h-[280px] grid grid-cols-1 lg:grid-cols-4 xl:grid-cols-6 gap-4 xl:h-[440px]' 
-    : 'h-[280px] grid grid-cols-4 lg:grid-cols-8 xl:grid-cols-12 gap-4';
+
 
   if (isFrameExtracting) {
-    return <div className={spinnerClass}>
-      <div className="col-span-full h-full min-h-[280px] flex flex-col items-center justify-center gap-2">
-        <Spinner size={12} />
-        <p className="text-sm text-gray-500">Extracting frames...</p>
-      </div>
-    </div>
+    return <FrameSpinner />
   }
 
   return (

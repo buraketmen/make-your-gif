@@ -21,12 +21,12 @@ export const DrawControl = () => {
         <span className="text-gray-600">Draw on Frames</span>
       </div>
       <motion.div 
-        layout
+        layout="position"
         className="grid grid-cols-12 gap-4"
         transition={springConfig}
       >
         <motion.div
-          layout
+          layout="position"
           key="grid"
           className={frameGridClass}
           transition={springConfig}
@@ -37,7 +37,7 @@ export const DrawControl = () => {
         <AnimatePresence initial={false} mode="sync">
           {selectedFrame && (
             <motion.div
-              layout
+              layout="position"
               initial={{ opacity: 1, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}

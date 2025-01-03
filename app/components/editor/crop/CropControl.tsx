@@ -21,8 +21,7 @@ export const CropControl = () => {
           <>
             <Button
               onClick={() => setIsCropMode(false)}
-              variant="outline"
-              className="text-gray-600"
+              variant="ghost"
             >
               Discard
             </Button>
@@ -30,7 +29,7 @@ export const CropControl = () => {
             <Button
               onClick={handleCropVideo}
               disabled={processes.isCropping}
-              className="bg-rose-500 hover:bg-rose-600 gap-2"
+              className="gap-2"
             >
               <Crop className="h-4 w-4" />
               {processes.isCropping ? 'Cropping...' : 'Apply Crop'}
@@ -40,7 +39,7 @@ export const CropControl = () => {
           <>
             <Button
               onClick={() => setIsCropMode(true)}
-              variant="outline"
+              variant="ghost"
               className="gap-2"
             >
               <Crop className="h-4 w-4" />
@@ -51,7 +50,7 @@ export const CropControl = () => {
               <Button
                 onClick={handleResetCrop}
                 variant="outline"
-                className="text-yellow-600 gap-2"
+                className="text-rose-500 hover:text-rose-600 gap-2"
               >
                 <RotateCcw className="h-4 w-4" />
                 Reset Crop

@@ -27,6 +27,42 @@ const defaultOptions = {
   quality: 0.95
 };
 
+let frameWorker: Worker | null = null;
+
+const getFrameWorker = () => {
+  if (!frameWorker) {
+    frameWorker = new Worker(new URL('./frame-worker.ts', import.meta.url));
+  }
+  return frameWorker;
+};
+
+const processFrameInWorker = async (
+  canvas: OffscreenCanvas,
+  frameData: { width: number; height: number; format: string; quality: number }
+): Promise<string> => {
+  const worker = getFrameWorker();
+  
+  return new Promise((resolve, reject) => {
+    const onMessage = (e: MessageEvent) => {
+      if (e.data.type === 'frame-processed') {
+        const blob = new Blob([e.data.buffer], { type: e.data.format });
+        resolve(URL.createObjectURL(blob));
+        worker.removeEventListener('message', onMessage);
+      } else if (e.data.type === 'error') {
+        reject(new Error(e.data.error));
+        worker.removeEventListener('message', onMessage);
+      }
+    };
+
+    worker.addEventListener('message', onMessage);
+    worker.postMessage({
+      type: 'process-frame',
+      canvas,
+      frameData
+    }, [canvas]);
+  });
+};
+
 export const extractVideoFrames = async (options: VideoFrameOptions): Promise<VideoFrameResult[]> => {
   const settings = { ...defaultOptions, ...options };
   const { video } = settings;
@@ -36,7 +72,7 @@ export const extractVideoFrames = async (options: VideoFrameOptions): Promise<Vi
   }
 
   while ((video.duration === Infinity || isNaN(video.duration)) && video.readyState < 2) {
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise(resolve => setTimeout(resolve, 50));
   }
 
   if (!settings.endTime) {
@@ -50,20 +86,15 @@ export const extractVideoFrames = async (options: VideoFrameOptions): Promise<Vi
   if (useOffsets) {
     settings.offsets = settings.offsets.filter(offset => 
       typeof offset === 'number' && offset >= 0 && offset <= video.duration
-    );
+    ).sort((a, b) => a - b);
     settings.count = settings.offsets.length;
   }
 
   settings.count = Math.max(1, Math.floor(settings.count!));
 
-  const interval = (settings.endTime - settings.startTime) / settings.count;
+  const interval = (settings.endTime - settings.startTime) / (settings.count - 1);
 
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
-  if (!ctx) {
-    throw new Error('Failed to get canvas context');
-  }
-
+  // Set dimensions
   const videoDimensionRatio = video.videoWidth / video.videoHeight;
   if (!settings.width && !settings.height) {
     settings.width = video.videoWidth;
@@ -74,60 +105,85 @@ export const extractVideoFrames = async (options: VideoFrameOptions): Promise<Vi
     settings.width = settings.height * videoDimensionRatio;
   }
 
-  canvas.width = settings.width!;
-  canvas.height = settings.height!;
-
   if (settings.onLoad) {
     settings.onLoad();
   }
 
-  const frames: VideoFrameResult[] = [];
-  let seekResolve: (() => void) | null = null;
-
-  const onSeeked = () => {
-    if (seekResolve) {
-      seekResolve();
-    }
-  };
-
-  video.addEventListener('seeked', onSeeked);
-
-  try {
-    for (let i = 0; i < settings.count; i++) {
-      const targetTime = useOffsets 
-        ? settings.offsets![i]
+  // Prepare frame extraction tasks
+  const tasks = Array.from({ length: settings.count }, (_, i) => {
+    const targetTime = useOffsets 
+      ? settings.offsets![i]
+      : i === settings.count - 1 
+        ? settings.endTime!
         : settings.startTime! + i * interval;
+    return { index: i, targetTime };
+  });
 
-      video.currentTime = targetTime;
-      await new Promise<void>(resolve => {
-        seekResolve = resolve;
-      });
+  const batchSize = 4;
+  const frames: VideoFrameResult[] = new Array(settings.count);
+  
+  for (let i = 0; i < tasks.length; i += batchSize) {
+    const batch = tasks.slice(i, i + batchSize);
+    await Promise.all(
+      batch.map(async ({ index, targetTime }) => {
+        video.currentTime = targetTime;
+        await new Promise<void>(resolve => {
+          const onSeeked = () => {
+            video.removeEventListener('seeked', onSeeked);
+            resolve();
+          };
+          video.addEventListener('seeked', onSeeked);
+        });
 
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      
-      frames.push({
-        offset: video.currentTime,
-        image: canvas.toDataURL(settings.format, settings.quality)
-      });
+        const canvas = new OffscreenCanvas(settings.width!, settings.height!);
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        
+        const frameData = {
+          width: settings.width!,
+          height: settings.height!,
+          format: settings.format,
+          quality: settings.quality
+        };
 
-      if (settings.onProgress) {
-        settings.onProgress(i + 1, settings.count);
-      }
-    }
+        try {
+          const image = await processFrameInWorker(canvas, frameData);
+          frames[index] = {
+            offset: targetTime,
+            image
+          };
+        } catch (error) {
+          // Fallback to non-worker method if worker fails
+          console.error(error);
+          const bitmap = await createImageBitmap(canvas);
+          const tempCanvas = new OffscreenCanvas(canvas.width, canvas.height);
+          const tempCtx = tempCanvas.getContext('2d')!;
+          tempCtx.drawImage(bitmap, 0, 0);
+          
+          const blob = await tempCanvas.convertToBlob({ type: settings.format, quality: settings.quality });
+          frames[index] = {
+            offset: targetTime,
+            image: URL.createObjectURL(blob)
+          };
+        }
 
-    return frames;
-  } finally {
-    video.removeEventListener('seeked', onSeeked);
+        if (settings.onProgress) {
+          settings.onProgress(index + 1, settings.count);
+        }
+      })
+    );
   }
+
+  return frames;
 };
 
-export const convertToDrawingFrames = (videoFrames: VideoFrameResult[]): DrawingFrame[] => {
+export const convertToDrawingFrames = (videoFrames: VideoFrameResult[], width?: number, height?: number): DrawingFrame[] => {
   return videoFrames.map((frame, index) => ({
     id: index,
     imageData: frame.image,
     drawings: [],
-    width: 0,
-    height: 0, 
+    width: width || 0,
+    height: height || 0,
     timestamp: frame.offset
   }));
 }; 
