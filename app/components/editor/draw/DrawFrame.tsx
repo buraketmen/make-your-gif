@@ -2,11 +2,13 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
-import { X, Check, Loader2, Undo, Redo, EraserIcon } from 'lucide-react';
+import { Check, Loader2, Undo, Redo } from "lucide-react";
 import { useVideo } from '@/context/video-context';
 import { Drawing, DrawingFrame } from '@/types/draw';
 import { drawPath } from '@/lib/utils';
 import { DrawTools } from './DrawTools';
+import { DrawClearButton } from './DrawClearButton';
+import { DrawCopyFromPreviousButton } from './DrawCopyFromPreviousButton';
 
 
 export const DrawFrame = () => {
@@ -26,7 +28,6 @@ export const DrawFrame = () => {
     setCurrentPoints([]);
   }
 
-  // Reset history when frame changes
   useEffect(() => {
     clearAll();
   }, [selectedFrame?.id]);
@@ -212,7 +213,6 @@ export const DrawFrame = () => {
     img.src = frames[frameIndex].imageData;
   };
 
-
   useEffect(() => {
     if (selectedFrame !== null) {
       drawFrame(selectedFrame);
@@ -252,6 +252,14 @@ export const DrawFrame = () => {
                     >
                         <Redo className="h-3 w-3" />
                     </Button>
+                    <DrawCopyFromPreviousButton
+                      frames={frames}
+                      selectedFrame={selectedFrame}
+                      drawingHistory={drawingHistory}
+                      setDrawingHistory={setDrawingHistory}
+                      setRedoHistory={setRedoHistory}
+                      setCurrentPoints={setCurrentPoints}
+                    />
                 </div>
               </div>
               <div 
@@ -275,20 +283,13 @@ export const DrawFrame = () => {
            <DrawTools currentColor={currentColor} setCurrentColor={setCurrentColor} penSize={penSize} setPenSize={setPenSize} />
           </div>
           <div className="flex justify-between gap-2">
+            <DrawClearButton 
+                selectedFrame={selectedFrame} 
+                currentPoints={currentPoints}
+                onClear={clearDrawings}
+              />
             <div className="flex gap-2">
-              <Button
-                onClick={clearDrawings}
-                variant="outline"
-                size="sm"
-                className="text-orange-600 gap-2"
-                disabled={selectedFrame.drawings.length === 0 && currentPoints.length === 0}
-              >
-                <EraserIcon className="h-4 w-4 " />
-                Clear
-              </Button>
               
-            </div>
-            <div className="flex gap-2">
               <Button
                 onClick={discardDrawing}
                 variant="outline"

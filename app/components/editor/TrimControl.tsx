@@ -1,6 +1,6 @@
 'use client';
 
-import { RangeSlider } from '@/components/RangeSlider';
+import { RangeSlider } from '@/components/ui/range-slider';
 import { useVideo } from '@/context/video-context';
 
 export const TrimControl = () => {
@@ -14,7 +14,7 @@ export const TrimControl = () => {
   return (
     <div className="w-full space-y-2">
       <div className="flex justify-between text-sm font-medium">
-        <span className="text-gray-600">Trim Duration</span>
+        <span className="text-gray-600">Duration</span>
         <span className="text-gray-500">{videoFilters.trim.start.toFixed(2)}<span className="text-gray-400">s</span> - {videoFilters.trim.end.toFixed(2)}<span className="text-gray-400">s</span></span>
       </div>
       

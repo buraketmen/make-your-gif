@@ -5,8 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Download } from 'lucide-react';
 import { useVideo } from '@/context/video-context';
 import Spinner from '@/components/Spinner';
-
-
+import SizeControl from '@/components/editor/gif/SizeControl';
 
 export const GifPreview = () => {
     const { gifUrl, processes, handleDownloadGif } = useVideo();
@@ -53,8 +52,9 @@ export const GifPreview = () => {
         )}
       </div>
       
-      <div className="w-full flex gap-4 mt-4">
-        {gifUrl && (
+      {gifUrl && (
+        <div className="space-y-4 mt-4">
+          <SizeControl />
           <Button
             onClick={handleDownloadGif}
             disabled={processes.isGeneratingGif || processes.isCropping || processes.isFrameExtracting}
@@ -63,8 +63,8 @@ export const GifPreview = () => {
             <Download className="h-4 w-4" />
             Download GIF
           </Button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }; 

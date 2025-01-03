@@ -65,6 +65,8 @@ interface VideoContextType {
   handleCropVideo: () => Promise<void>;
   handleResetCrop: () => void;
   handleDownloadGif: () => void;
+  gifSize: number;
+  setGifSize: (size: number) => void;
 }
 
 const VideoContext = createContext<VideoContextType | null>(null);
@@ -114,6 +116,7 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
   const [duration, setDuration] = useState(0);
   const [frames, setFrames] = useState<DrawingFrame[]>([]);
   const [selectedFrame, setSelectedFrame] = useState<DrawingFrame | null>(null);
+  const [gifSize, setGifSize] = useState(480);
   
   useEffect(() => {
     if (videoFilters.crop.isActive === false && videoFilters.trim.isActive === false) {
@@ -141,11 +144,7 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
     }, [gifUrl]);
 
   const generateGif = useCallback(async () => {
-    if (!videoBlob) {
-      return;
-    }
-
-    if (frames.length === 0) {
+    if (!videoBlob || frames.length === 0) {
       return;
     }
 
@@ -175,7 +174,7 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
       if (videoFilters.trim.isActive) {
         filterCommands.push(`trim=start=${videoFilters.trim.start}:end=${videoFilters.trim.end}`);
       }
-      filterCommands.push('scale=480:-1:flags=lanczos');
+      filterCommands.push(`scale=${gifSize}:-1:flags=lanczos`);
       const filterComplex = filterCommands.join(',');
 
       await ffmpeg.exec([
@@ -194,7 +193,7 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
     } finally {
       setProcesses(prev => ({ ...prev, isGeneratingGif: false }));
     }
-  }, [videoBlob, frames, videoFilters, loadFFmpeg, handleGifUrlChange]);
+  }, [videoBlob, frames, videoFilters, loadFFmpeg, handleGifUrlChange, gifSize]);
 
   useEffect(() => {
     if (!videoBlob || frames.length === 0) return;
@@ -205,7 +204,7 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
 
     return () => clearTimeout(timeoutId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [videoBlob, frames,  lastUpdatedAt]);
+  }, [videoBlob, frames, lastUpdatedAt, gifSize]);
 
   useEffect(() => {
     return () => {
@@ -561,7 +560,9 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
     handleBack,
     handleCropVideo,
     handleResetCrop,
-    handleDownloadGif
+    handleDownloadGif,
+    gifSize,
+    setGifSize,
   };
 
   return (
