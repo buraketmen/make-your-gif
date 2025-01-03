@@ -7,12 +7,58 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-interface CropCoordinates {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
+interface LegacyNavigator extends Navigator {
+  webkitGetUserMedia?: (
+    constraints: MediaStreamConstraints,
+    successCallback: (stream: MediaStream) => void,
+    errorCallback: (error: Error) => void
+  ) => void;
+  mozGetUserMedia?: (
+    constraints: MediaStreamConstraints,
+    successCallback: (stream: MediaStream) => void,
+    errorCallback: (error: Error) => void
+  ) => void;
+  msGetUserMedia?: (
+    constraints: MediaStreamConstraints,
+    successCallback: (stream: MediaStream) => void,
+    errorCallback: (error: Error) => void
+  ) => void;
 }
+
+
+export const getMediaDevices = (): MediaDevices => {
+     if ((navigator as unknown as Record<string, unknown>).mediaDevices === undefined) {
+        (navigator as unknown as Record<string, unknown>).mediaDevices = {};
+      }
+
+      if (navigator.mediaDevices.getUserMedia === undefined) {
+        navigator.mediaDevices.getUserMedia = function(constraints: MediaStreamConstraints) {
+          const getUserMedia = ((navigator as unknown as LegacyNavigator).webkitGetUserMedia ||
+            (navigator as unknown as LegacyNavigator).mozGetUserMedia ||
+            (navigator as unknown as LegacyNavigator).msGetUserMedia);
+
+          if (!getUserMedia) {
+            return Promise.reject(new Error('getUserMedia is not implemented in this browser'));
+          }
+
+          return new Promise((resolve, reject) => {
+            getUserMedia.call(navigator, constraints, resolve, reject);
+          });
+        }
+      }
+      return navigator.mediaDevices;
+}
+
+export const getCameras = async (): Promise<{cameras: MediaDeviceInfo[], deviceIds: string[]}> => {
+  const mediaDevices = getMediaDevices();
+  const devices = await mediaDevices.enumerateDevices();
+  const videoDevices = devices.filter(device => device.kind === 'videoinput');
+  return {
+    cameras: videoDevices,
+    deviceIds: videoDevices.map(device => device.deviceId)
+  };
+}
+
 
 interface CropDimensions {
   pixels: {
@@ -26,7 +72,12 @@ interface CropDimensions {
 }
 
 export const calculateCropDimensions = (
-  coordinates: CropCoordinates,
+  coordinates: {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+},
   videoWidth: number,
   videoHeight: number
 ): CropDimensions => {

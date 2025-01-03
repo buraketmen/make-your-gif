@@ -8,32 +8,12 @@ import { CameraError } from './CameraError';
 import { RecordingIndicator } from './RecordingIndicator';
 import { MAX_RECORDING_DURATION, useVideo } from '@/context/video-context';
 import Spinner from '@/components/Spinner';
-import { getOptimalVideoConstraints } from '@/lib/utils';
+import { getMediaDevices, getOptimalVideoConstraints } from '@/lib/utils';
 
-interface LegacyNavigator extends Navigator {
-  webkitGetUserMedia?: (
-    constraints: MediaStreamConstraints,
-    successCallback: (stream: MediaStream) => void,
-    errorCallback: (error: Error) => void
-  ) => void;
-  mozGetUserMedia?: (
-    constraints: MediaStreamConstraints,
-    successCallback: (stream: MediaStream) => void,
-    errorCallback: (error: Error) => void
-  ) => void;
-  msGetUserMedia?: (
-    constraints: MediaStreamConstraints,
-    successCallback: (stream: MediaStream) => void,
-    errorCallback: (error: Error) => void
-  ) => void;
-}
-
-
-export const VideoRecorder = () => {
+export const VideoRecorder = ({ device }: { device: string }) => {
     const {
         isRecording,
         isMirrored,
-        currentCameraId,
         mimeType,
         handleStartRecording,
         handleStopRecording,
@@ -50,35 +30,18 @@ export const VideoRecorder = () => {
   const [recordingTime, setRecordingTime] = useState(0);
   const recordingTimerRef = useRef<NodeJS.Timeout>();
 
+
+
   const initializeCamera = useCallback(async () => {
     try {
+      
+      
       setIsInitializing(true);
       setPermissionError(null);
-
-
-      // Polyfill for getUserMedia
-      if ((navigator as unknown as Record<string, unknown>).mediaDevices === undefined) {
-        (navigator as unknown as Record<string, unknown>).mediaDevices = {};
-      }
-
-      if (navigator.mediaDevices.getUserMedia === undefined) {
-        navigator.mediaDevices.getUserMedia = function(constraints: MediaStreamConstraints) {
-          const getUserMedia = ((navigator as unknown as LegacyNavigator).webkitGetUserMedia ||
-            (navigator as unknown as LegacyNavigator).mozGetUserMedia ||
-            (navigator as unknown as LegacyNavigator).msGetUserMedia);
-
-          if (!getUserMedia) {
-            return Promise.reject(new Error('getUserMedia is not implemented in this browser'));
-          }
-
-          return new Promise((resolve, reject) => {
-            getUserMedia.call(navigator, constraints, resolve, reject);
-          });
-        }
-      }
-
-      const videoConstraints = await getOptimalVideoConstraints(currentCameraId || undefined);
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
+      
+    const mediaDevices = await getMediaDevices();
+      const videoConstraints = await getOptimalVideoConstraints(device);
+      const mediaStream = await mediaDevices.getUserMedia({
         video: videoConstraints
       });
 
@@ -120,20 +83,23 @@ export const VideoRecorder = () => {
     } finally {
       setIsInitializing(false);
     }
-  }, [currentCameraId]);
+  }, [device]);
 
   
   useEffect(() => {
         initializeCamera();
         return () => {
+            if (videoRef.current) {
+                videoRef.current.srcObject = null;
+            }
             if (stream) {
                 stream.getTracks().forEach(track => {
                     track.stop();
-                });
+                })
             }
         }
       // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [device]);
 
   useEffect(() => {
     if (isRecording && stream) {
@@ -235,11 +201,33 @@ export const VideoRecorder = () => {
   }, [isRecording]);
 
   useEffect(() => {
+    const video = videoRef.current;
+    if (video && stream) {
+        video.srcObject = stream;
+    }
+    return () => {
+        if (video) {
+            video.srcObject = null;
+        }
+    };
+  }, [stream]);
+
+  useEffect(() => {
     return () => {
       if (controlsTimeoutRef.current) {
         clearTimeout(controlsTimeoutRef.current);
       }
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+      }
+      
+      if (stream) {
+        stream.getTracks().forEach(track => {
+          track.stop();
+        })
+      }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

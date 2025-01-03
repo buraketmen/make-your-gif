@@ -32,10 +32,8 @@ interface VideoFilters {
 interface VideoContextType {
   mimeType: string;
   lastUpdatedAt: number;
-  cameras: MediaDeviceInfo[];
-  setCameras: (cameras: MediaDeviceInfo[]) => void;
-  currentCameraId: string | null;
-  onCameraChange: (cameraId: string) => void;
+  deviceId: string;
+  setDeviceId: (deviceId: string) => void;
   baseVideoBlob: Blob | null;
   setBaseVideoBlob: (blob: Blob | null) => void;
   videoBlob: Blob | null;
@@ -102,11 +100,10 @@ interface VideoProviderProps {
 export const VideoProvider = ({ children }: VideoProviderProps) => {
   const ffmpegRef = useRef<FFmpeg | null>(null);
   const mimeType = getSupportedMimeType();
+  const [deviceId, setDeviceId] = useState<string>('');
   const [lastUpdatedAt, setLastUpdatedAt] = useState<number>(0);
   const [baseVideoBlob, setBaseVideoBlob] = useState<Blob | null>(null);
   const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
-  const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
-  const [currentCameraId, setCurrentCameraId] = useState<string | null>(null);
   const [videoFilters, setVideoFilters] = useState({
     trim: {
       start: 0,
@@ -148,12 +145,8 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
   }, [baseVideoBlob, videoFilters.crop.isActive, videoFilters.trim.isActive]);
 
   useEffect(() => {
-    if (cameras.length > 0) {
-        const firstCameraId = cameras[0].deviceId;
-        onCameraChange(firstCameraId);
-        
-    }
-  }, [cameras]);
+    
+  }, []);
 
   const loadFFmpeg = useCallback(async () => {
     if (!ffmpegRef.current) {
@@ -166,15 +159,6 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
       ffmpegRef.current = ffmpeg;
     }
   }, [ffmpegRef]);
-
-  const onCameraChange = (cameraId: string) => {
-    setCurrentCameraId((prev) => {
-        if (prev !== cameraId) {
-            return cameraId;
-        }
-        return prev;
-    });
-  };
 
     const handleGifUrlChange = useCallback((newUrl: string | null) => {
         if (gifUrl) {
@@ -567,6 +551,8 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
 
   const value = {
     mimeType,
+    deviceId,
+    setDeviceId,
     lastUpdatedAt,
     gifUrl,
     processes,
@@ -575,10 +561,6 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
     setDuration,
     mode,
     setMode,
-    cameras,
-    setCameras,
-    currentCameraId,
-    onCameraChange,
     baseVideoBlob,
     setBaseVideoBlob,
     videoBlob,
