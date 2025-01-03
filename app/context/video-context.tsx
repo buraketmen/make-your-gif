@@ -5,7 +5,8 @@ import { DrawingFrame, Mode } from '@/types/draw';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
 import { drawFrameToCanvas, extractFramesFromVideo, calculateCropDimensions } from '@/lib/utils';
 
-const TARGET_FPS = 30;
+export const TARGET_FPS = 30;
+export const MAX_RECORDING_DURATION = 10;
 
 interface VideoFilters {
   trim: {
@@ -67,7 +68,7 @@ interface VideoContextType {
   handleStartRecording: () => void;
   handleStopRecording: () => void;
   handleVideoRecorded: (blob: Blob, videoDuration: number) => void;
-  handleFileSelected: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  handleFileSelected: (file: File) => void;
   handleBack: () => void;
   handleCropVideo: () => Promise<void>;
   handleResetCrop: () => void;
@@ -311,8 +312,7 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
         }
   };
 
-  const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleFileSelected = async (file: File) => {
     if (file && file.type.startsWith('video/')) {
       try {
         const croppedBlob = await cropVideoToOriginalSize(file);

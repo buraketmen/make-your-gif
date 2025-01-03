@@ -37,10 +37,20 @@ const getFrameWorker = () => {
 };
 
 const processFrameInWorker = async (
-  canvas: OffscreenCanvas,
+  sourceCanvas: OffscreenCanvas,
   frameData: { width: number; height: number; format: string; quality: number }
 ): Promise<string> => {
   const worker = getFrameWorker();
+  
+  // Create a new canvas and transfer its bitmap
+  const transferCanvas = new OffscreenCanvas(frameData.width, frameData.height);
+  const transferCtx = transferCanvas.getContext('2d')!;
+  const bitmap = await createImageBitmap(sourceCanvas);
+  transferCtx.drawImage(bitmap, 0, 0);
+  bitmap.close();
+  
+  // Get the image data instead of transferring the canvas
+  const imageData = transferCtx.getImageData(0, 0, frameData.width, frameData.height);
   
   return new Promise((resolve, reject) => {
     const onMessage = (e: MessageEvent) => {
@@ -57,9 +67,9 @@ const processFrameInWorker = async (
     worker.addEventListener('message', onMessage);
     worker.postMessage({
       type: 'process-frame',
-      canvas,
+      imageData: imageData,
       frameData
-    }, [canvas]);
+    }, [imageData.data.buffer]);
   });
 };
 

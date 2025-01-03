@@ -6,7 +6,7 @@ import { RecordingProgress } from './RecordingProgress';
 import { RecordingControls } from './RecordingControls';
 import { CameraError } from './CameraError';
 import { RecordingIndicator } from './RecordingIndicator';
-import { useVideo } from '@/context/video-context';
+import { MAX_RECORDING_DURATION, useVideo } from '@/context/video-context';
 import Spinner from '@/components/Spinner';
 
 interface LegacyNavigator extends Navigator {
@@ -27,7 +27,6 @@ interface LegacyNavigator extends Navigator {
   ) => void;
 }
 
-const MAX_RECORDING_DURATION = 10; 
 
 export const VideoRecorder = () => {
     const {

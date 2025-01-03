@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { useVideo } from '@/context/video-context';
 import { SegmentedControl } from '@/components/SegmentedControl';
 import { RecordMode } from './RecordMode';
-import { UploadMode } from './UploadMode';
+import { FileDropzone } from './FileDropzone';
 
 export function VideoInput() {
   const {
@@ -31,7 +31,7 @@ export function VideoInput() {
           {mode === 'record' ? (
             <RecordMode />
           ) : (
-            <UploadMode />
+            <FileDropzone />
           )}
         </AnimatePresence>
       </Card>
