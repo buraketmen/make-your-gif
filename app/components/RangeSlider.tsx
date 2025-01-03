@@ -22,20 +22,30 @@ export const RangeSlider = ({
   const [isDragging, setIsDragging] = useState(false);
   const [activeHandle, setActiveHandle] = useState<'start' | 'end' | null>(null);
   const sliderRef = useRef<HTMLDivElement>(null);
+  const dragStartX = useRef<number>(0);
+  const dragStartValue = useRef<number>(0);
+
+  const calculateValue = (clientX: number) => {
+    if (!sliderRef.current) return 0;
+    
+    const rect = sliderRef.current.getBoundingClientRect();
+    const width = rect.width;
+    const offset = clientX - rect.left;
+    const percentage = Math.max(0, Math.min(1, offset / width));
+    const rawValue = min + (max - min) * percentage;
+    return Math.round(rawValue / step) * step;
+  };
 
   useEffect(() => {
-    const handleMouseUp = () => {
-      setIsDragging(false);
-      setActiveHandle(null);
-    };
-
     const handleMouseMove = (e: MouseEvent) => {
       if (!isDragging || !activeHandle || !sliderRef.current) return;
 
-      const rect = sliderRef.current.getBoundingClientRect();
-      const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-      const value = min + (max - min) * percent;
-      const roundedValue = Math.round(value / step) * step;
+      const currentValue = calculateValue(e.clientX);
+      const deltaX = e.clientX - dragStartX.current;
+      const deltaPercentage = deltaX / sliderRef.current.getBoundingClientRect().width;
+      const deltaValue = (max - min) * deltaPercentage;
+      const newValue = Math.max(min, Math.min(max, dragStartValue.current + deltaValue));
+      const roundedValue = Math.round(newValue / step) * step;
 
       if (activeHandle === 'start' && roundedValue < endValue) {
         onStartChange(roundedValue);
@@ -44,23 +54,34 @@ export const RangeSlider = ({
       }
     };
 
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-    window.addEventListener('touchend', handleMouseUp);
+    const handleMouseUp = () => {
+      setIsDragging(false);
+      setActiveHandle(null);
+    };
+
+    if (isDragging) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    }
 
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
-      window.removeEventListener('touchend', handleMouseUp);
     };
   }, [isDragging, activeHandle, min, max, step, startValue, endValue, onStartChange, onEndChange]);
 
+  const handleMouseDown = (handle: 'start' | 'end', e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+    setActiveHandle(handle);
+    dragStartX.current = e.clientX;
+    dragStartValue.current = handle === 'start' ? startValue : endValue;
+  };
+
   return (
     <div ref={sliderRef} className="relative h-2">
-      {/* Track */}
       <div className="absolute inset-0 bg-gray-200 rounded-lg" />
       
-      {/* Selected Range */}
       <div
         className="absolute h-full bg-rose-500 rounded-lg pointer-events-none"
         style={{
@@ -69,7 +90,6 @@ export const RangeSlider = ({
         }}
       />
 
-      {/* Start Handle */}
       <div
         className="absolute w-4 h-4 bg-rose-500 rounded-full -mt-[0.275rem] -ml-2 cursor-grab hover:ring-2 hover:ring-rose-500/20 active:cursor-grabbing touch-none"
         style={{ 
@@ -78,14 +98,9 @@ export const RangeSlider = ({
           transform: 'translateZ(0)',
           willChange: 'left'
         }}
-        onMouseDown={(e) => {
-          e.preventDefault();
-          setIsDragging(true);
-          setActiveHandle('start');
-        }}
+        onMouseDown={(e) => handleMouseDown('start', e)}
       />
 
-      {/* End Handle */}
       <div
         className="absolute w-4 h-4 bg-rose-500 rounded-full -mt-[0.275rem] -ml-2 cursor-grab hover:ring-2 hover:ring-rose-500/20 active:cursor-grabbing touch-none"
         style={{ 
@@ -94,11 +109,7 @@ export const RangeSlider = ({
           transform: 'translateZ(0)',
           willChange: 'left'
         }}
-        onMouseDown={(e) => {
-          e.preventDefault();
-          setIsDragging(true);
-          setActiveHandle('end');
-        }}
+        onMouseDown={(e) => handleMouseDown('end', e)}
       />
     </div>
   );

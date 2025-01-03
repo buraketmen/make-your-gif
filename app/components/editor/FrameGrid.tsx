@@ -75,10 +75,8 @@ const FrameGrid = () => {
   const [pendingFrame, setPendingFrame] = useState<DrawingFrame | null>(null);
 
   const handleFrameSelect = (frame: DrawingFrame) => {
-    // If selecting the same frame, do nothing
     if (frame.id === selectedFrame?.id) return;
 
-    // Check if there are any unsaved drawings in DrawFrame
     const drawFrame = document.getElementById('draw-frame');
     const hasUnsavedDrawings = drawFrame?.getAttribute('data-has-unsaved') === "true";
 
@@ -115,7 +113,7 @@ const FrameGrid = () => {
     return <div className={spinnerClass}>
       <div className="col-span-full h-full min-h-[280px] flex flex-col items-center justify-center gap-2">
         <Spinner size={12} />
-        <p className="text-sm text-gray-500">Extracting frames..</p>
+        <p className="text-sm text-gray-500">Extracting frames...</p>
       </div>
     </div>
   }

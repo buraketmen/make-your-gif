@@ -2,7 +2,7 @@
 
 import { VideoPreview } from '@/components/editor/VideoPreview';
 import { TrimControl } from '@/components/editor/TrimControl';
-import { CropControl } from '@/components/editor/CropControl';
+import { CropControl } from '@/components/editor/crop/CropControl';
 import { DrawControl } from '@/components/editor/draw/DrawControl';
 
 export const VideoEditor = () => {
