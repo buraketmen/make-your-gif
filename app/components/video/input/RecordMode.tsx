@@ -2,15 +2,14 @@
 
 import { motion } from 'framer-motion';
 import { VideoRecorder } from '@/components/video/recorder/VideoRecorder';
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useVideo } from '@/context/video-context';
 
 export const RecordMode = () => {
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-    const { setCameras } = useVideo();
+    const { currentCameraId, setCameras } = useVideo();
 
-    const getCameras = async () => {
-        // clear settimeout
+    const getCameras = useCallback(async () => {
         const devices = await navigator.mediaDevices.enumerateDevices();
         const videoDevices = devices.filter(device => device.kind === 'videoinput');
         if(videoDevices.length > 0) {
@@ -28,8 +27,8 @@ export const RecordMode = () => {
                 clearTimeout(timeoutRef.current);
             }
         }
-
-    };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     useEffect(() => {
         getCameras();
@@ -41,6 +40,8 @@ export const RecordMode = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+
+
   return (
     <motion.div
       key="record-mode"
@@ -49,7 +50,7 @@ export const RecordMode = () => {
       exit={{ opacity: 0, x: 20 }}
     >
       <div className="aspect-video  rounded-xl overflow-hidden ">
-        <VideoRecorder />
+        <VideoRecorder key={currentCameraId}/>
       </div>
     </motion.div>
   );

@@ -8,6 +8,7 @@ import { CameraError } from './CameraError';
 import { RecordingIndicator } from './RecordingIndicator';
 import { MAX_RECORDING_DURATION, useVideo } from '@/context/video-context';
 import Spinner from '@/components/Spinner';
+import { getOptimalVideoConstraints } from '@/lib/utils';
 
 interface LegacyNavigator extends Navigator {
   webkitGetUserMedia?: (
@@ -33,10 +34,12 @@ export const VideoRecorder = () => {
         isRecording,
         isMirrored,
         currentCameraId,
+        mimeType,
         handleStartRecording,
         handleStopRecording,
         handleVideoRecorded,
     } = useVideo();
+ const timeoutIdRef = useRef<NodeJS.Timeout | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [permissionError, setPermissionError] = useState<string | null>(null);
@@ -52,6 +55,17 @@ export const VideoRecorder = () => {
     try {
       setIsInitializing(true);
       setPermissionError(null);
+      if (!currentCameraId) {
+        timeoutIdRef.current = setTimeout(() => {
+            initializeCamera();
+        }, 1000);
+        return;
+      }
+
+      if (timeoutIdRef.current) {
+        clearTimeout(timeoutIdRef.current);
+        timeoutIdRef.current = null;
+      }
 
       // Polyfill for getUserMedia
       if ((navigator as unknown as Record<string, unknown>).mediaDevices === undefined) {
@@ -74,15 +88,12 @@ export const VideoRecorder = () => {
         }
       }
 
+      const videoConstraints = await getOptimalVideoConstraints(currentCameraId);
       const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: {
-            deviceId: currentCameraId ? { exact: currentCameraId } : undefined,
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        }
+        video: videoConstraints
       });
 
-      if (mediaStream.getVideoTracks().length === 0) {
+      if (!mediaStream.getVideoTracks().length) {
         throw new Error('No video tracks available');
       }
 
@@ -91,11 +102,9 @@ export const VideoRecorder = () => {
         videoRef.current.srcObject = mediaStream;
         await new Promise<void>((resolve) => {
           if (!videoRef.current) return;
-          if (videoRef.current.readyState >= 2) {
-            resolve();
-          } else {
-            videoRef.current.onloadeddata = () => resolve();
-          }
+          videoRef.current.onloadeddata = () => resolve();
+          // If video is already loaded, resolve immediately
+          if (videoRef.current.readyState >= 2) resolve();
         });
       }
     } catch (error: unknown) {
@@ -103,12 +112,18 @@ export const VideoRecorder = () => {
       let errorMessage = 'Camera access was denied. Please check your browser permissions and make sure your camera is connected.';
       
       if (error instanceof Error) {
-        if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
-          errorMessage = 'No camera device was found. Please connect a camera and try again.';
-        } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
-          errorMessage = 'Your camera is in use by another application. Please close other applications and try again.';
-        } else if (error.name === 'OverconstrainedError') {
-          errorMessage = 'Could not find a suitable camera. Please try with a different camera.';
+        switch (error.name) {
+          case 'NotFoundError':
+          case 'DevicesNotFoundError':
+            errorMessage = 'No camera device was found. Please connect a camera and try again.';
+            break;
+          case 'NotReadableError':
+          case 'TrackStartError':
+            errorMessage = 'Your camera is in use by another application. Please close other applications and try again.';
+            break;
+          case 'OverconstrainedError':
+            errorMessage = 'Could not find a suitable camera. Please try with a different camera.';
+            break;
         }
       }
       
@@ -118,31 +133,28 @@ export const VideoRecorder = () => {
     }
   }, [currentCameraId]);
 
+  
   useEffect(() => {
-      initializeCamera();
+        initializeCamera();
+        return () => {
+            if (timeoutIdRef.current) {
+                clearTimeout(timeoutIdRef.current);
+            }
+            if (stream) {
+                stream.getTracks().forEach(track => {
+                    track.stop();
+                });
+            }
+        }
       // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentCameraId]);
-
-
-   useEffect(() => {
-    if (currentCameraId) {
-      initializeCamera();
-    }
-    return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentCameraId, initializeCamera]);
-
+  }, []);
 
   useEffect(() => {
     if (isRecording && stream) {
       startRecording();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isRecording, stream]);
+  }, [isRecording]);
 
 
   const stopRecording = useCallback(() => {
@@ -154,12 +166,12 @@ export const VideoRecorder = () => {
       
       mediaRecorderRef.current.onstop = () => {
         const blob = new Blob(chunksRef.current, { 
-          type: 'video/webm;codecs=h264' 
+          type: mimeType
         });
         handleVideoRecorded(blob, finalTime);
       };
     }
-  }, [handleStopRecording, handleVideoRecorded, recordingTime]);
+  }, [handleStopRecording, handleVideoRecorded, recordingTime, mimeType]);
 
   const startRecording = useCallback(() => {
     if (!stream || !videoRef.current) return;
@@ -195,8 +207,8 @@ export const VideoRecorder = () => {
         requestAnimationFrame(drawFrame);
       }
 
-      const options = { 
-        mimeType: 'video/webm;codecs=h264',
+      const options: MediaRecorderOptions = {
+        mimeType,
         videoBitsPerSecond: 2500000
       };
 
@@ -218,8 +230,8 @@ export const VideoRecorder = () => {
         }
       }, MAX_RECORDING_DURATION * 1000);
     } catch (error) {
-      console.error(error);
-      setPermissionError('Failed to start recording. Your browser might not support video recording.');
+      console.error('Recording error:', error);
+      setPermissionError('This browser or device might not support video recording. Please try using a different browser (like Chrome) or device.');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stream, handleStopRecording, isRecording, stopRecording, isMirrored]);
@@ -282,7 +294,7 @@ export const VideoRecorder = () => {
         autoPlay
         playsInline
         muted
-        className={`w-full h-full object-cover rounded-lg ${isMirrored ? 'scale-x-[-1]' : ''}`}
+        className={`w-full h-full aspect-video bg-gray-100 rounded-lg ${isMirrored ? 'scale-x-[-1]' : ''}`}
       />
       
       <AnimatePresence>

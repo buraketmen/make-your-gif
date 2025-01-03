@@ -187,11 +187,220 @@ export const extractFramesFromVideo = (
         });
       }
 
-      console.log(`Frame extraction complete. Captured ${drawingFrames.length} frames.`);
       resolve(drawingFrames);
     } catch (error) {
       console.error('Error during frame extraction:', error);
       reject(error);
     }
   });
+};
+
+export const getSupportedMimeType = (): string => {
+  const types = [
+    'video/webm;codecs=h264',
+    'video/webm',
+    'video/mp4',
+    'video/webm;codecs=vp8,opus',
+    'video/webm;codecs=vp9,opus',
+    'video/webm;codecs=vp8',
+    'video/webm;codecs=daala',
+    'video/mpeg'
+  ];
+
+  if (typeof MediaRecorder === 'undefined') {
+    console.warn('MediaRecorder is not supported in this browser');
+    return types[0];
+  }
+
+  const supported = types.find(type => {
+    try {
+      return MediaRecorder.isTypeSupported(type);
+    } catch (e) {
+      console.warn(`Error checking support for ${type}:`, e);
+      return false;
+    }
+  });
+
+  if (!supported) {
+    console.warn('No supported video MIME types found');
+    return types[0];
+  }
+
+  return supported;
+};
+
+interface VideoFormat {
+  format: string;
+  codec: string;
+}
+
+export const getVideoOutputFormat = (mimeType: string): VideoFormat => {
+  if (mimeType.includes('webm')) {
+    return {
+      format: 'webm',
+      codec: mimeType.includes('vp8') ? 'vp8' : 
+             mimeType.includes('vp9') ? 'vp9' : 'vp8'
+    };
+  } else if (mimeType.includes('mp4')) {
+    return {
+      format: 'mp4',
+      codec: 'h264'
+    };
+  }
+  // Default to WebM/VP8 as fallback
+  return {
+    format: 'webm',
+    codec: 'vp8'
+  };
+};
+
+export const getFFmpegCodecArgs = (codec: string): string[] => {
+  switch (codec) {
+    case 'vp8':
+      return [
+        '-c:v', 'vp8',
+        '-b:v', '1M',
+        '-deadline', 'realtime',
+        '-cpu-used', '4'
+      ];
+    case 'vp9':
+      return [
+        '-c:v', 'vp9',
+        '-b:v', '1M',
+        '-deadline', 'realtime',
+        '-cpu-used', '4'
+      ];
+    case 'h264':
+      return [
+        '-c:v', 'h264',
+        '-preset', 'ultrafast',
+        '-crf', '23'
+      ];
+    default:
+      return [
+        '-c:v', 'vp8',
+        '-b:v', '1M',
+        '-deadline', 'realtime',
+        '-cpu-used', '4'
+      ];
+  }
+}; 
+
+interface VideoConstraints {
+  width: MediaTrackConstraints['width'];
+  height: MediaTrackConstraints['height'];
+  deviceId?: MediaTrackConstraints['deviceId'];
+  aspectRatio?: MediaTrackConstraints['aspectRatio'];
+  facingMode?: MediaTrackConstraints['facingMode'];
+}
+
+export const getOptimalVideoConstraints = async (deviceId?: string): Promise<VideoConstraints> => {
+  const defaultConstraints: VideoConstraints = {
+    width: { min: 320, ideal: 1280, max: 1920 },
+    height: { min: 240, ideal: 720, max: 1080 }
+  };
+
+  if (deviceId) {
+    defaultConstraints.deviceId = { exact: deviceId };
+  }
+
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const device = devices.find(d => d.kind === 'videoinput' && (!deviceId || d.deviceId === deviceId));
+    
+    if (device) {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { 
+          deviceId: device.deviceId,
+          facingMode: 'environment', // Prefer back camera on mobile
+          width: { min: 320, ideal: 1280, max: 1920 },
+          height: { min: 240, ideal: 720, max: 1080 }
+        } 
+      });
+      const track = stream.getVideoTracks()[0];
+      const capabilities = track.getCapabilities();
+      const settings = track.getSettings(); // Get actual settings being used
+      stream.getTracks().forEach(track => track.stop());
+
+      if (capabilities) {
+        const constraints: VideoConstraints = {
+          width: { 
+            min: Math.min(capabilities.width?.min || 320, settings.width || 320),
+            ideal: settings.width || 1280,
+            max: capabilities.width?.max || 1920
+          },
+          height: { 
+            min: Math.min(capabilities.height?.min || 240, settings.height || 240),
+            ideal: settings.height || 720,
+            max: capabilities.height?.max || 1080
+          }
+        };
+
+        if (deviceId) {
+          constraints.deviceId = { exact: deviceId };
+        }
+
+        if (capabilities.aspectRatio) {
+          constraints.aspectRatio = {
+            min: capabilities.aspectRatio.min || 1,
+            ideal: settings.aspectRatio || 16/9,
+            max: capabilities.aspectRatio.max || 2
+          };
+        }
+
+        return constraints;
+      }
+    }
+
+    const commonResolutions = [
+      { width: 1920, height: 1080 }, // 16:9 Full HD
+      { width: 1280, height: 720 },  // HD
+      { width: 854, height: 480 },   // 480p
+      { width: 640, height: 360 },   // 360p
+      { width: 320, height: 240 }    // Minimum acceptable
+    ];
+
+    for (const resolution of commonResolutions) {
+      try {
+        const testConstraints: VideoConstraints = {
+          width: { min: 320, ideal: resolution.width, max: 1920 },
+          height: { min: 240, ideal: resolution.height, max: 1080 },
+          ...(deviceId && { deviceId: { exact: deviceId } })
+        };
+        
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: {
+            ...testConstraints,
+            facingMode: 'environment' // Prefer back camera on mobile
+          }
+        });
+        
+        const track = stream.getVideoTracks()[0];
+        const settings = track.getSettings();
+        stream.getTracks().forEach(track => track.stop());
+        
+        return {
+          width: { min: 320, ideal: settings.width || resolution.width, max: 1920 },
+          height: { min: 240, ideal: settings.height || resolution.height, max: 1080 },
+          ...(deviceId && { deviceId: { exact: deviceId } })
+        };
+      } catch (error) {
+        console.warn('Error getting optimal video constraints:', error);
+        continue;
+      }
+    }
+
+    return {
+      width: { min: 320, ideal: 640, max: 1920 },
+      height: { min: 240, ideal: 480, max: 1080 },
+      facingMode: 'environment',
+      ...(deviceId && { deviceId: { exact: deviceId } })
+    };
+  } catch (error) {
+    console.warn('Error getting optimal video constraints:', error);
+    return {
+      ...defaultConstraints,
+      facingMode: 'environment'
+    };
+  }
 }; 
