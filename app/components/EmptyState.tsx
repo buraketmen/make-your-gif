@@ -11,7 +11,7 @@ const iconVariants = {
 export const EmptyState = () => {
   return (
     <Card className="border-2 border-dashed">
-      <CardContent className="p-6">
+      <CardContent className="p-2 md:p-6">
         <div className="flex flex-col items-center justify-center space-y-4">
           <motion.div
             className="relative w-24 h-24"

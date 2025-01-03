@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { useVideo } from '@/context/video-context';
 import { SegmentedControl } from '@/components/SegmentedControl';
 import { RecordMode } from './RecordMode';
-import { UploadMode } from './UploadMode';
+import { FileDropzone } from './FileDropzone';
 
 export function VideoInput() {
   const {
@@ -22,8 +22,8 @@ export function VideoInput() {
       exit={{ opacity: 0, x: -100 }}
       className="max-w-4xl mx-auto"
     >
-      <Card className="p-6 shadow-lg border-0">
-        <div className="mb-6 flex justify-center">
+      <Card className="p-2 md:p-6 shadow-lg border-0">
+        <div className="mb-2 md:mb-6 flex justify-center">
           <SegmentedControl mode={mode} onChange={setMode} disabled={isRecording} />
         </div>
 
@@ -31,7 +31,7 @@ export function VideoInput() {
           {mode === 'record' ? (
             <RecordMode />
           ) : (
-            <UploadMode />
+            <FileDropzone />
           )}
         </AnimatePresence>
       </Card>

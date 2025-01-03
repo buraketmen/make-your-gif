@@ -5,7 +5,7 @@ import { DrawingFrame } from '@/types/draw';
 import { drawFrameToCanvas } from '@/lib/utils';
 import { useVideo } from '@/context/video-context';
 import { motion, AnimatePresence } from 'framer-motion';
-import Spinner from '@/components/Spinner';
+import  { Spinner, SpinnerText } from '@/components/Spinner';
 import { Settings2Icon } from 'lucide-react';
 import {
   AlertDialog,
@@ -25,7 +25,7 @@ interface FrameProps {
 
 const FrameSpinnerText = () => {
     const { frameProgress  } = useVideo();
-    return <p className="text-sm text-gray-500">Extracting frames... {frameProgress.current}/{frameProgress.total ?? 1}</p>
+    return <SpinnerText text={`Extracting frames... ${frameProgress.current}/${frameProgress.total ?? 1}`} />
 }
 
 const FrameSpinner = () => {
@@ -88,6 +88,14 @@ const FrameGrid = () => {
   const [showWarning, setShowWarning] = useState(false);
   const [pendingFrame, setPendingFrame] = useState<DrawingFrame | null>(null);
 
+  const handleTouchMove = (e: React.TouchEvent) => {
+    const target = e.target as HTMLElement;
+    const isAtBottom = target.scrollHeight - target.scrollTop === target.clientHeight;
+    if (isAtBottom) {
+      e.preventDefault();
+    }
+  };
+
   const handleFrameSelect = (frame: DrawingFrame) => {
     if (frame.id === selectedFrame?.id) return;
 
@@ -148,6 +156,7 @@ const FrameGrid = () => {
       <motion.div 
         layout
         className={frameGridClass}
+        onTouchMove={handleTouchMove}
         transition={{ 
           layout: { duration: 0.2 },
           type: "spring",

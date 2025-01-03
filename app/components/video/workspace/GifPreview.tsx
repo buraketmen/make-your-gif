@@ -4,7 +4,7 @@ import Image from 'next/image';
 import { Button } from "@/components/ui/button";
 import { Download } from 'lucide-react';
 import { useVideo } from '@/context/video-context';
-import Spinner from '@/components/Spinner';
+import {Spinner, SpinnerText} from '@/components/Spinner';
 import SizeControl from '@/components/editor/gif/SizeControl';
 
 export const GifPreview = () => {
@@ -30,7 +30,7 @@ export const GifPreview = () => {
           <div className="w-full h-full flex items-center justify-center">
             <div className="text-center flex flex-col items-center justify-center gap-2">
               <Spinner size={12} />
-              <p className="text-sm text-gray-500">Processing...</p>
+              <SpinnerText text="Processing..." />
             </div>
           </div>
         ) : gifUrl ? (
@@ -45,9 +45,7 @@ export const GifPreview = () => {
           </div>
         ) : (
           <div className="w-full h-full flex items-center justify-center">
-            <p className="text-sm text-gray-500">
-                {getInformationText()}
-            </p>
+            <SpinnerText text={getInformationText()} />
           </div>
         )}
       </div>

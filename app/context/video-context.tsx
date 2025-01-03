@@ -3,9 +3,17 @@ import { createContext, useContext, useState, useRef, useEffect, ReactNode, useC
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { DrawingFrame, Mode } from '@/types/draw';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
-import { drawFrameToCanvas, extractFramesFromVideo, calculateCropDimensions } from '@/lib/utils';
+import { 
+  drawFrameToCanvas, 
+  extractFramesFromVideo, 
+  calculateCropDimensions, 
+  getSupportedMimeType,
+  getVideoOutputFormat,
+  getFFmpegCodecArgs 
+} from '@/lib/utils';
 
-const TARGET_FPS = 30;
+export const TARGET_FPS = 30;
+export const MAX_RECORDING_DURATION = 10;
 
 interface VideoFilters {
   trim: {
@@ -22,11 +30,10 @@ interface VideoFilters {
 
 
 interface VideoContextType {
+  mimeType: string;
   lastUpdatedAt: number;
-  cameras: MediaDeviceInfo[];
-  setCameras: (cameras: MediaDeviceInfo[]) => void;
-  currentCameraId: string | null;
-  onCameraChange: (cameraId: string) => void;
+  deviceId: string;
+  setDeviceId: (deviceId: string) => void;
   baseVideoBlob: Blob | null;
   setBaseVideoBlob: (blob: Blob | null) => void;
   videoBlob: Blob | null;
@@ -67,7 +74,7 @@ interface VideoContextType {
   handleStartRecording: () => void;
   handleStopRecording: () => void;
   handleVideoRecorded: (blob: Blob, videoDuration: number) => void;
-  handleFileSelected: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  handleFileSelected: (file: File) => void;
   handleBack: () => void;
   handleCropVideo: () => Promise<void>;
   handleResetCrop: () => void;
@@ -92,11 +99,11 @@ interface VideoProviderProps {
 
 export const VideoProvider = ({ children }: VideoProviderProps) => {
   const ffmpegRef = useRef<FFmpeg | null>(null);
+  const mimeType = getSupportedMimeType();
+  const [deviceId, setDeviceId] = useState<string>('');
   const [lastUpdatedAt, setLastUpdatedAt] = useState<number>(0);
   const [baseVideoBlob, setBaseVideoBlob] = useState<Blob | null>(null);
   const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
-  const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
-  const [currentCameraId, setCurrentCameraId] = useState<string | null>(null);
   const [videoFilters, setVideoFilters] = useState({
     trim: {
       start: 0,
@@ -138,10 +145,8 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
   }, [baseVideoBlob, videoFilters.crop.isActive, videoFilters.trim.isActive]);
 
   useEffect(() => {
-    if (cameras.length > 0) {
-      onCameraChange(cameras[0].deviceId);
-    }
-  }, [cameras]);
+    
+  }, []);
 
   const loadFFmpeg = useCallback(async () => {
     if (!ffmpegRef.current) {
@@ -154,10 +159,6 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
       ffmpegRef.current = ffmpeg;
     }
   }, [ffmpegRef]);
-
-  const onCameraChange = (cameraId: string) => {
-    setCurrentCameraId(cameraId);
-  };
 
     const handleGifUrlChange = useCallback((newUrl: string | null) => {
         if (gifUrl) {
@@ -259,31 +260,33 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
       URL.revokeObjectURL(video.src);
       video.remove();
 
-
       await loadFFmpeg();
       const ffmpeg = ffmpegRef.current!;
 
-      await ffmpeg.writeFile('input.webm', await fetchFile(blob));
+      const { format, codec } = getVideoOutputFormat(mimeType);
+      const fileNames = {
+        input: `input.${format}`,
+        output: `output.${format}`
+      }
+
+      await ffmpeg.writeFile(fileNames.input, await fetchFile(blob));
 
       try {
         await ffmpeg.exec([
-          '-i', 'input.webm',
-          '-vf', `crop=${width}:${height}:0:0`,
-          '-c:v', 'vp8',
-          '-b:v', '1M',
-          '-r', '30',
-          '-deadline', 'realtime',
-          '-cpu-used', '4',
-          'output.webm'
+            '-i', fileNames.input,
+            '-vf', `crop=${width}:${height}:0:0`,
+            ...getFFmpegCodecArgs(codec),
+            '-r', '30',
+            fileNames.output
         ]);
       } catch (execError) {
         console.error('FFmpeg execution error:', execError);
         throw execError;
       }
 
-      const data = await ffmpeg.readFile('output.webm');
+      const data = await ffmpeg.readFile(fileNames.output);
       
-      return new Blob([data], { type: 'video/webm' });
+      return new Blob([data], { type: mimeType });
     } catch (error) {
       console.error('Error cropping video to original size:', error);
       return blob;
@@ -311,8 +314,7 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
         }
   };
 
-  const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleFileSelected = async (file: File) => {
     if (file && file.type.startsWith('video/')) {
       try {
         const croppedBlob = await cropVideoToOriginalSize(file);
@@ -455,23 +457,30 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
       URL.revokeObjectURL(video.src);
       video.remove();
 
-      await ffmpeg.writeFile('input.webm', await fetchFile(baseVideoBlob));
+      const { format, codec } = getVideoOutputFormat(mimeType);
+      const fileNames = {
+        input: `input.${format}`,
+        output: `output.${format}`
+      }
+
+      await ffmpeg.writeFile(fileNames.input, await fetchFile(baseVideoBlob));
 
       const cropDimensions = calculateCropDimensions(
         videoFilters.crop.coordinates,
         videoWidth,
         videoHeight
       );
-      
+
       await ffmpeg.exec([
-        '-i', 'input.webm',
+        '-i', fileNames.input,
         '-vf', cropDimensions.ffmpegFilter,
-        '-c:v', 'vp8',
-        'output.webm'
+        ...getFFmpegCodecArgs(codec),
+        '-r', '30',
+        fileNames.output
       ]);
 
-      const data = await ffmpeg.readFile('output.webm');
-      const croppedBlob = new Blob([data], { type: 'video/webm' });
+      const data = await ffmpeg.readFile(fileNames.output);
+      const croppedBlob = new Blob([data], { type: mimeType });
       
       setVideoBlob(croppedBlob);
       setVideoFilters(prev => ({
@@ -541,6 +550,9 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
   };
 
   const value = {
+    mimeType,
+    deviceId,
+    setDeviceId,
     lastUpdatedAt,
     gifUrl,
     processes,
@@ -549,10 +561,6 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
     setDuration,
     mode,
     setMode,
-    cameras,
-    setCameras,
-    currentCameraId,
-    onCameraChange,
     baseVideoBlob,
     setBaseVideoBlob,
     videoBlob,

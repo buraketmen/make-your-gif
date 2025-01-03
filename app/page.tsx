@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { VideoInput } from '@/components/video/input/VideoInput';
 import { VideoWorkspace } from '@/components/video/workspace/VideoWorkspace';
 import { useVideo } from '@/context/video-context';
-import Spinner from '@/components/Spinner';
+import {Spinner, SpinnerText} from '@/components/Spinner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
 const ConversionAnimation = () => {
@@ -17,15 +17,8 @@ const ConversionAnimation = () => {
     >
       <div className="relative">
         <Spinner size={12} />
+        <SpinnerText text="Processing video..." />
       </div>
-      <motion.p 
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0 }}
-        className="text-gray-600 text-center"
-      >
-        Processing video...
-      </motion.p>
     </motion.div>
   );
 };
@@ -34,8 +27,8 @@ export default function Home() {
   const { processes: { isConverting }, videoBlob } = useVideo();
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-rose-50 to-white">
-      <div className="container mx-auto p-4 xl:px-0">
+    <main className="min-h-screen ">
+      <div className="container mx-auto p-2 md:p-4 xl:px-0">
         {!videoBlob && (
           <div className="text-center pb-4">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">Make Your GIF</h1>

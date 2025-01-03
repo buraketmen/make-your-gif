@@ -8,7 +8,7 @@ export const DrawTools = () => {
   const { currentColor, setCurrentColor, penSize, setPenSize, currentTool, setCurrentTool } = useDraw();
 
   return (
-    <div className="w-24 space-y-4">
+    <div className="w-12 md:w-24 space-y-4">
       <div className="flex flex-col items-end gap-2">
         <input
           type="color"
@@ -25,14 +25,14 @@ export const DrawTools = () => {
             <button
               key={tool.id}
               onClick={() => setCurrentTool(tool.id)}
-              className={`p-2 text-xs rounded-lg transition-all flex items-center gap-1 ${
+              className={`p-2 text-xs rounded-lg transition-all flex items-center justify-center md:justify-start gap-1 ${
                 currentTool === tool.id
                   ? 'bg-rose-500 text-white'
                   : 'bg-gray-100 hover:bg-gray-200 text-gray-600'
               }`}
             >
               <tool.icon className="h-3 w-3" />
-              {tool.name}
+              <span className="text-xs hidden md:inline">{tool.name}</span>
             </button>
           ))}
         </div>

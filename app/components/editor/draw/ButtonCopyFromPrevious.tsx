@@ -29,7 +29,7 @@ export function DrawCopyFromPreviousButton() {
           size="sm"
           disabled={isDisabled}
         >
-          <CopyPlusIcon className="h-3 w-3" />
+          <CopyPlusIcon className="h-2 w-2 md:h-4 md:w-4" />
         </Button>
       </TooltipTrigger>
       <TooltipContent>
