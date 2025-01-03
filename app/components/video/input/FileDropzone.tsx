@@ -113,7 +113,7 @@ export const FileDropzone = () => {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
-      className="p-8 rounded-lg bg-white shadow-lg text-center"
+      className="pb-2 pl-2 pr-2 pt-4 rounded-lg bg-white text-center"
     >
       <div
         onDragEnter={handleDragIn}
@@ -122,7 +122,7 @@ export const FileDropzone = () => {
         onDrop={handleDrop}
         onClick={() => document.getElementById('video-input')?.click()}
         className={`
-          max-w-md mx-auto space-y-6 border-2 border-dashed rounded-lg p-8
+          mx-auto space-y-6 border-2 border-dashed rounded-lg p-8
           transition-colors duration-200 cursor-pointer
           ${isDragging ? 'border-rose-500 bg-rose-50' : 'border-gray-200 hover:border-rose-500'}
           ${error ? 'border-red-500 bg-red-50' : ''}
