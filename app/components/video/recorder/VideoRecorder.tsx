@@ -39,7 +39,6 @@ export const VideoRecorder = () => {
         handleStopRecording,
         handleVideoRecorded,
     } = useVideo();
- const timeoutIdRef = useRef<NodeJS.Timeout | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [permissionError, setPermissionError] = useState<string | null>(null);
@@ -55,17 +54,7 @@ export const VideoRecorder = () => {
     try {
       setIsInitializing(true);
       setPermissionError(null);
-      if (!currentCameraId) {
-        timeoutIdRef.current = setTimeout(() => {
-            initializeCamera();
-        }, 1000);
-        return;
-      }
 
-      if (timeoutIdRef.current) {
-        clearTimeout(timeoutIdRef.current);
-        timeoutIdRef.current = null;
-      }
 
       // Polyfill for getUserMedia
       if ((navigator as unknown as Record<string, unknown>).mediaDevices === undefined) {
@@ -88,7 +77,7 @@ export const VideoRecorder = () => {
         }
       }
 
-      const videoConstraints = await getOptimalVideoConstraints(currentCameraId);
+      const videoConstraints = await getOptimalVideoConstraints(currentCameraId || undefined);
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: videoConstraints
       });
@@ -137,9 +126,6 @@ export const VideoRecorder = () => {
   useEffect(() => {
         initializeCamera();
         return () => {
-            if (timeoutIdRef.current) {
-                clearTimeout(timeoutIdRef.current);
-            }
             if (stream) {
                 stream.getTracks().forEach(track => {
                     track.stop();

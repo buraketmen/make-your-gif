@@ -150,7 +150,7 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
   useEffect(() => {
     if (cameras.length > 0) {
         const firstCameraId = cameras[0].deviceId;
-            onCameraChange(firstCameraId);
+        onCameraChange(firstCameraId);
         
     }
   }, [cameras]);
