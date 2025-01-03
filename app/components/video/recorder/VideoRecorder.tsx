@@ -7,17 +7,38 @@ import { RecordingControls } from './RecordingControls';
 import { CameraError } from './CameraError';
 import { RecordingIndicator } from './RecordingIndicator';
 import { useVideo } from '@/context/video-context';
+import Spinner from '@/components/Spinner';
 
-const MAX_RECORDING_DURATION = 15; // seconds
+interface LegacyNavigator extends Navigator {
+  webkitGetUserMedia?: (
+    constraints: MediaStreamConstraints,
+    successCallback: (stream: MediaStream) => void,
+    errorCallback: (error: Error) => void
+  ) => void;
+  mozGetUserMedia?: (
+    constraints: MediaStreamConstraints,
+    successCallback: (stream: MediaStream) => void,
+    errorCallback: (error: Error) => void
+  ) => void;
+  msGetUserMedia?: (
+    constraints: MediaStreamConstraints,
+    successCallback: (stream: MediaStream) => void,
+    errorCallback: (error: Error) => void
+  ) => void;
+}
+
+const MAX_RECORDING_DURATION = 10; 
 
 export const VideoRecorder = () => {
     const {
         isRecording,
         isMirrored,
+        currentCameraId,
         handleStartRecording,
         handleStopRecording,
         handleVideoRecorded,
     } = useVideo();
+  const [isInitializing, setIsInitializing] = useState(true);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [permissionError, setPermissionError] = useState<string | null>(null);
   const [isControlsVisible, setIsControlsVisible] = useState(true);
@@ -30,9 +51,33 @@ export const VideoRecorder = () => {
 
   const initializeCamera = useCallback(async () => {
     try {
+      setIsInitializing(true);
       setPermissionError(null);
+
+      // Polyfill for getUserMedia
+      if ((navigator as unknown as Record<string, unknown>).mediaDevices === undefined) {
+        (navigator as unknown as Record<string, unknown>).mediaDevices = {};
+      }
+
+      if (navigator.mediaDevices.getUserMedia === undefined) {
+        navigator.mediaDevices.getUserMedia = function(constraints: MediaStreamConstraints) {
+          const getUserMedia = ((navigator as unknown as LegacyNavigator).webkitGetUserMedia ||
+            (navigator as unknown as LegacyNavigator).mozGetUserMedia ||
+            (navigator as unknown as LegacyNavigator).msGetUserMedia);
+
+          if (!getUserMedia) {
+            return Promise.reject(new Error('getUserMedia is not implemented in this browser'));
+          }
+
+          return new Promise((resolve, reject) => {
+            getUserMedia.call(navigator, constraints, resolve, reject);
+          });
+        }
+      }
+
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: {
+            deviceId: currentCameraId ? { exact: currentCameraId } : undefined,
           width: { ideal: 1280 },
           height: { ideal: 720 }
         }
@@ -69,25 +114,37 @@ export const VideoRecorder = () => {
       }
       
       setPermissionError(errorMessage);
+    } finally {
+      setIsInitializing(false);
     }
-  }, []);
+  }, [currentCameraId]);
 
   useEffect(() => {
-    initializeCamera();
+      initializeCamera();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentCameraId]);
+
+
+   useEffect(() => {
+    if (currentCameraId) {
+      initializeCamera();
+    }
     return () => {
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [currentCameraId, initializeCamera]);
+
 
   useEffect(() => {
     if (isRecording && stream) {
       startRecording();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isRecording]);
+  }, [isRecording, stream]);
+
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
@@ -154,7 +211,7 @@ export const VideoRecorder = () => {
         }
       };
 
-      mediaRecorder.start(1000);
+      mediaRecorder.start(100);
 
       setTimeout(() => {
         if (mediaRecorderRef.current?.state === 'recording' && isRecording) {
@@ -162,35 +219,10 @@ export const VideoRecorder = () => {
         }
       }, MAX_RECORDING_DURATION * 1000);
     } catch (error) {
-      console.error('Error starting recording:', error);
-      try {
-        const fallbackOptions = { 
-          mimeType: 'video/webm',
-          videoBitsPerSecond: 2500000
-        };
-        const mediaRecorder = new MediaRecorder(stream, fallbackOptions);
-        mediaRecorderRef.current = mediaRecorder;
-        chunksRef.current = [];
-
-        mediaRecorder.ondataavailable = (event) => {
-          if (event.data && event.data.size > 0) {
-            chunksRef.current.push(event.data);
-          }
-        };
-
-        mediaRecorder.start(1000);
-
-        setTimeout(() => {
-          if (mediaRecorderRef.current?.state === 'recording' && isRecording) {
-            stopRecording();
-          }
-        }, MAX_RECORDING_DURATION * 1000);
-      } catch (fallbackError) {
-        console.error('Error with fallback recording:', fallbackError);
-        setPermissionError('Failed to start recording. Your browser might not support video recording.');
-        handleStopRecording();
-      }
+      console.error(error);
+      setPermissionError('Failed to start recording. Your browser might not support video recording.');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stream, handleStopRecording, isRecording, stopRecording, isMirrored]);
 
   const handleMouseMove = useCallback(() => {
@@ -232,6 +264,12 @@ export const VideoRecorder = () => {
 
   if (permissionError) {
     return <CameraError errorMessage={permissionError} onRetry={initializeCamera} />;
+  }
+
+  if (isInitializing) {
+    return <div className="flex items-center justify-center h-full">
+      <Spinner size={12} />
+    </div>;
   }
 
   return (

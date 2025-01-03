@@ -8,16 +8,16 @@ import Spinner from '@/components/Spinner';
 import SizeControl from '@/components/editor/gif/SizeControl';
 
 export const GifPreview = () => {
-    const { gifUrl, processes, handleDownloadGif } = useVideo();
+    const { gifUrl, processes: { isFrameExtracting, isGeneratingGif, isCropping, isTrimming }, handleDownloadGif } = useVideo();
 
     const getInformationText = () => {
         if (gifUrl) {
             return "GIF preview";
-        } else if (processes.isCropping) {
+        } else if (isCropping) {
             return "Cropping...";
-        } else if (processes.isFrameExtracting) {
+        } else if (isFrameExtracting) {
             return "Extracting frames...";
-        } else if (processes.isTrimming) {
+        } else if (isTrimming) {
             return "Trimming...";
         } else {
             return "Processing...";
@@ -26,7 +26,7 @@ export const GifPreview = () => {
   return (
     <div className="flex flex-col h-full">
       <div className="aspect-video bg-black/5 rounded-xl overflow-hidden">
-        {processes.isGeneratingGif ? (
+        {isGeneratingGif ? (
           <div className="w-full h-full flex items-center justify-center">
             <div className="text-center flex flex-col items-center justify-center gap-2">
               <Spinner size={12} />
@@ -57,8 +57,8 @@ export const GifPreview = () => {
           <SizeControl />
           <Button
             onClick={handleDownloadGif}
-            disabled={processes.isGeneratingGif || processes.isCropping || processes.isFrameExtracting}
-            className="w-full bg-rose-500 hover:bg-rose-600 gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={isGeneratingGif || isCropping || isFrameExtracting}
+            className="w-full gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Download className="h-4 w-4" />
             Download GIF

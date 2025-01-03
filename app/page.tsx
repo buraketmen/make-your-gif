@@ -6,6 +6,7 @@ import { VideoWorkspace } from '@/components/video/workspace/VideoWorkspace';
 import { useVideo } from '@/context/video-context';
 import Spinner from '@/components/Spinner';
 import { TooltipProvider } from '@/components/ui/tooltip';
+
 const ConversionAnimation = () => {
   return (
     <motion.div
@@ -41,6 +42,7 @@ export default function Home() {
             <p className="text-gray-600">Record or upload a video and convert it to a GIF in seconds</p>
           </div>
         )}
+        
         <TooltipProvider>
             <AnimatePresence mode="wait">
             {isConverting ? (
@@ -52,7 +54,6 @@ export default function Home() {
             )}
             </AnimatePresence>
         </TooltipProvider>
-       
       </div>
     </main>
   );

@@ -6,9 +6,10 @@ type Mode = 'record' | 'upload';
 interface SegmentedControlProps {
   mode: Mode;
   onChange: (mode: Mode) => void;
+  disabled?: boolean;
 }
 
-export const SegmentedControl = ({ mode, onChange }: SegmentedControlProps) => {
+export const SegmentedControl = ({ mode, onChange, disabled }: SegmentedControlProps) => {
   return (
     <div className="inline-flex rounded-lg bg-gray-100 p-1">
       <button
@@ -17,7 +18,7 @@ export const SegmentedControl = ({ mode, onChange }: SegmentedControlProps) => {
           mode === 'record'
             ? 'text-white'
             : 'text-gray-500 hover:text-gray-900'
-        }`}
+        } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
       >
         {mode === 'record' && (
           <motion.div
@@ -33,11 +34,12 @@ export const SegmentedControl = ({ mode, onChange }: SegmentedControlProps) => {
 
       <button
         onClick={() => onChange('upload')}
+        disabled={disabled}
         className={`relative flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
           mode === 'upload'
             ? 'text-white'
             : 'text-gray-500 hover:text-gray-900'
-        }`}
+        } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
       >
         {mode === 'upload' && (
           <motion.div

@@ -1,6 +1,9 @@
+'use client';
+
 import { Button } from "@/components/ui/button";
 import { Trash2 } from "lucide-react";
-import { Drawing, DrawingFrame } from "@/types/draw";
+import { useVideo } from '@/context/video-context';
+import { useDraw } from '@/context/draw-context';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,13 +16,12 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-interface DrawClearButtonProps {
-  selectedFrame: DrawingFrame;
-  currentPoints: Drawing[];
-  onClear: () => void;
-}
+export function DrawClearButton() {
+  const { selectedFrame } = useVideo();
+  const { currentPoints, clearDrawings } = useDraw();
 
-export function DrawClearButton({ selectedFrame, currentPoints, onClear }: DrawClearButtonProps) {
+  if (!selectedFrame) return null;
+
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
@@ -42,7 +44,7 @@ export function DrawClearButton({ selectedFrame, currentPoints, onClear }: DrawC
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={onClear} className="bg-rose-500 hover:bg-rose-600">
+          <AlertDialogAction onClick={clearDrawings} className="bg-rose-500 hover:bg-rose-600">
             Clear All
           </AlertDialogAction>
         </AlertDialogFooter>
