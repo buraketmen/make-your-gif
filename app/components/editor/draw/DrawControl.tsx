@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 export const DrawControl = () => {
   const { selectedFrame } = useVideo();
 
-  const frameGridClass = selectedFrame ? 'col-span-3 md:col-span-2 lg:col-span-6' : 'col-span-12';
+  const frameGridClass = selectedFrame ? 'row-span-1 md:col-span-2 lg:col-span-6' : 'col-span-12';
 
   const springConfig = {
     type: "spring",
@@ -22,7 +22,7 @@ export const DrawControl = () => {
       </div>
       <motion.div 
         layout="position"
-        className="grid grid-cols-12 gap-4"
+        className="grid grid-cols-1 md:grid-cols-12 gap-4"
         transition={springConfig}
       >
         <motion.div
@@ -41,7 +41,7 @@ export const DrawControl = () => {
               initial={{ opacity: 1, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="col-span-9 md:col-span-10 lg:col-span-6"
+              className="row-span-1 md:col-span-10 lg:col-span-6"
               transition={{ type: "spring", bounce: 0, duration: 0.2 }}
             >
               <DrawFrame />

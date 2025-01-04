@@ -35,8 +35,33 @@ export const DrawFrame = () => {
   useEffect(() => {
     if (selectedFrame !== null && canvasRef.current) {
       drawFrame(selectedFrame, canvasRef.current);
+      
+      // Add non-passive touch event listeners
+      const canvas = canvasRef.current;
+      const handleTouchStart = (e: TouchEvent) => {
+        e.preventDefault();
+        startDrawing(e as unknown as React.TouchEvent<HTMLCanvasElement>, canvas);
+      };
+      const handleTouchMove = (e: TouchEvent) => {
+        e.preventDefault();
+        draw(e as unknown as React.TouchEvent<HTMLCanvasElement>, canvas);
+      };
+      const handleTouchEnd = (e: TouchEvent) => {
+        e.preventDefault();
+        endDrawing(e as unknown as React.TouchEvent<HTMLCanvasElement>, canvas);
+      };
+
+      canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+      canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+      canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
+
+      return () => {
+        canvas.removeEventListener('touchstart', handleTouchStart);
+        canvas.removeEventListener('touchmove', handleTouchMove);
+        canvas.removeEventListener('touchend', handleTouchEnd);
+      };
     }
-  }, [selectedFrame, currentPoints, drawFrame]);
+  }, [selectedFrame, currentPoints, drawFrame, draw, startDrawing, endDrawing]);
 
   useEffect(() => {
     const drawFrame = document.getElementById('draw-frame');
@@ -74,11 +99,12 @@ export const DrawFrame = () => {
             </div>
           </div>
           <div 
-            className="relative bg-black/5 rounded-lg overflow-hidden flex items-center justify-center max-h-[600px]"
+            className="relative bg-black/5 rounded-lg overflow-hidden flex items-center justify-center max-h-[600px] touch-none"
             style={{ 
               aspectRatio: selectedFrame ? `${selectedFrame.width}/${selectedFrame.height}` : '16/9',
               width: '100%',
-              maxHeight: 480
+              maxHeight: 480,
+              touchAction: 'none'
             }}
           >
             <canvas
