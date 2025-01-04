@@ -21,9 +21,7 @@ export const CameraError = ({ errorMessage, onRetry }: CameraErrorProps) => {
           
           
           <CameraSelector isController={false} />
-          <Button
-            onClick={onRetry}
-        >
+          <Button type="button" onClick={onRetry}>
           Try Again
           </Button>
         </div>

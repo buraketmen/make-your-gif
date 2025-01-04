@@ -31,6 +31,7 @@ export const RecordingControls = ({
         <CameraSelector isController={true} />
 
         <Button
+            type="button"
           variant="outline"
           size="icon"
           className="bg-rose-700/25 backdrop-blur-sm border-rose-500/25 hover:bg-rose-700 hover:border-rose-500"
@@ -50,6 +51,7 @@ export const RecordingControls = ({
         <div className="p-2 rounded-full bg-black/50 backdrop-blur-sm">
           {!isRecording ? (
             <Button
+                type="button"
               onClick={onStartRecording}
               variant="default"
               className="bg-rose-500 hover:bg-rose-600 rounded-full py-2 md:py-3 px-6 md:px-8"
@@ -58,6 +60,7 @@ export const RecordingControls = ({
             </Button>
           ) : (
             <Button
+                type="button"
               onClick={onStopRecording}
               variant="destructive"
               className="rounded-full py-2 md:py-3 px-6 md:px-8"

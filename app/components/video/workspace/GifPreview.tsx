@@ -6,6 +6,7 @@ import { Download } from 'lucide-react';
 import { useVideo } from '@/context/video-context';
 import {Spinner, SpinnerText} from '@/components/Spinner';
 import SizeControl from '@/components/editor/gif/SizeControl';
+import { ShareGifButton } from '@/components/ShareGif';
 
 export const GifPreview = () => {
     const { gifUrl, processes: { isFrameExtracting, isGeneratingGif, isCropping, isTrimming }, handleDownloadGif } = useVideo();
@@ -53,14 +54,21 @@ export const GifPreview = () => {
       {gifUrl && (
         <div className="space-y-4 mt-4">
           <SizeControl />
-          <Button
-            onClick={handleDownloadGif}
-            disabled={isGeneratingGif || isCropping || isFrameExtracting}
-            className="w-full gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Download className="h-4 w-4" />
-            Download GIF
-          </Button>
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              type="button"
+              onClick={handleDownloadGif}
+              disabled={isGeneratingGif || isCropping || isFrameExtracting}
+              className="gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Download className="h-4 w-4" />
+              <span>Download</span>
+            </Button>
+            <ShareGifButton 
+              gifUrl={gifUrl} 
+              disabled={isGeneratingGif || isCropping || isFrameExtracting} 
+            />
+          </div>
         </div>
       )}
     </div>

@@ -9,6 +9,7 @@ export const VideoPreview = () => {
   const {
     videoBlob,
     videoFilters,
+    frames
   } = useVideo();
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -18,19 +19,6 @@ export const VideoPreview = () => {
 
     const videoUrl = URL.createObjectURL(videoBlob);
     videoRef.current.src = videoUrl;
-
-    // Generate poster image
-    const video = videoRef.current;
-    video.currentTime = 0;
-    video.addEventListener('loadeddata', () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx = canvas.getContext('2d');
-      ctx?.drawImage(video, 0, 0, canvas.width, canvas.height);
-      video.poster = canvas.toDataURL();
-    });
-
     return () => URL.revokeObjectURL(videoUrl);
   }, [videoBlob]);
 
@@ -41,11 +29,12 @@ export const VideoPreview = () => {
         controls={!videoFilters.crop.isCropMode}
         className="w-full h-full object-contain"
         playsInline
-        preload="auto"
+        poster={frames[0]?.imageData}
         style={{
           maxHeight: '100%',
           maxWidth: '100%'
         }}
+        preload="metadata"
       />
       {videoFilters.crop.isCropMode && (
         <div className="absolute inset-0 flex items-center justify-center">

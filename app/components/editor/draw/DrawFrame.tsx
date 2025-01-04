@@ -80,6 +80,7 @@ export const DrawFrame = () => {
             <span>Frame {selectedFrame.id + 1}</span>
             <div className='flex gap-1 md:gap-2'>
               <Button
+                type="button"
                 onClick={undoLastDrawing}
                 variant="ghost"
                 size="sm"
@@ -88,6 +89,7 @@ export const DrawFrame = () => {
                 <Undo className="h-2 w-2 md:h-4 md:w-4" />
               </Button>
               <Button
+                type="button"
                 onClick={redoLastDrawing}
                 variant="ghost"
                 size="sm"
@@ -99,11 +101,11 @@ export const DrawFrame = () => {
             </div>
           </div>
           <div 
-            className="relative bg-black/5 rounded-lg overflow-hidden flex items-center justify-center max-h-[600px] touch-none"
+            className="relative bg-black/5 rounded-lg overflow-hidden flex items-center justify-center max-h-[320px] md:max-h-[600px] touch-none"
             style={{ 
               aspectRatio: selectedFrame ? `${selectedFrame.width}/${selectedFrame.height}` : '16/9',
               width: '100%',
-              maxHeight: 480,
+              height: 'calc(100% - 32px)',
               touchAction: 'none'
             }}
           >
@@ -130,6 +132,8 @@ export const DrawFrame = () => {
             Discard
           </Button>
           <Button
+
+            type="button"
             onClick={saveDrawing}
             variant="default"
             size="sm"

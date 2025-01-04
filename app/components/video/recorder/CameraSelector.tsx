@@ -28,6 +28,7 @@ export const CameraSelector = ({ isController = true }: CameraSelectorProps) => 
         <DropdownMenuTrigger asChild>
             {isController ? (
             <Button
+            type="button"
             variant="outline"
             size="icon"
             className="bg-rose-700/25 backdrop-blur-sm border-rose-500/25 hover:bg-rose-700 hover:border-rose-500"
@@ -38,6 +39,7 @@ export const CameraSelector = ({ isController = true }: CameraSelectorProps) => 
             ) : (
 
                 <Button
+                type="button"   
                     variant="secondary"
                     className=" text-rose-500 hover:text-rose-600 gap-2"
                     >

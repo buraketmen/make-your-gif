@@ -12,6 +12,7 @@ export const EditorSection = () => {
       <div className="mb-6 flex justify-between items-center">
         <h2 className="text-2xl font-semibold text-gray-900">Editor</h2>
         <Button
+                type="button"
           onClick={handleBack}
           variant="outline"
           size="sm"

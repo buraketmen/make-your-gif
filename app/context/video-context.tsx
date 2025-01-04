@@ -73,11 +73,11 @@ interface VideoContextType {
 
   handleStartRecording: () => void;
   handleStopRecording: () => void;
-  handleVideoRecorded: (blob: Blob, videoDuration: number) => void;
-  handleFileSelected: (file: File) => void;
+  handleVideoRecorded: (blob: Blob, videoDuration: number) => Promise<void>;
+  handleFileSelected: (file: File) => Promise<void>;
   handleBack: () => void;
   handleCropVideo: () => Promise<void>;
-  handleResetCrop: () => void;
+  handleResetCrop: () => Promise<void>;
   handleDownloadGif: () => void;
   gifSize: number;
   setGifSize: (size: number) => void;
@@ -497,20 +497,24 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
     }
   };
 
-  const handleResetCrop = () => {
+  const handleResetCrop = async () => {
     if (videoBlob !== baseVideoBlob) {
-      setSelectedFrame(null);
-      setVideoBlob(baseVideoBlob);
-      setVideoFilters(prev => ({
-        ...prev,
-        crop: {
-          coordinates: { x: 20, y: 20, width: 60, height: 60 },
-          isActive: false,
-          isCropMode: false
-        }
-      }));
-      extractFramesForVideo(baseVideoBlob!);
-      setLastUpdatedAt(Date.now());
+      try {
+        setSelectedFrame(null);
+        setVideoBlob(baseVideoBlob);
+        setVideoFilters(prev => ({
+          ...prev,
+          crop: {
+            coordinates: { x: 20, y: 20, width: 60, height: 60 },
+            isActive: false,
+            isCropMode: false
+          }
+        }));
+        await extractFramesForVideo(baseVideoBlob!);
+        setLastUpdatedAt(Date.now());
+      } catch (error) {
+        console.error('Error resetting crop:', error);
+      }
     }
   };
 
