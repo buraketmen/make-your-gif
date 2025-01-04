@@ -18,6 +18,7 @@ export const VideoRecorder = ({ device }: { device: string }) => {
         handleStartRecording,
         handleStopRecording,
         handleVideoRecorded,
+        isLandscape,
     } = useVideo();
 const [videoConstraints, setVideoConstraints] = useState<MediaTrackConstraints | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
@@ -36,12 +37,11 @@ const [videoConstraints, setVideoConstraints] = useState<MediaTrackConstraints |
   const initializeCamera = useCallback(async () => {
     try {
       
-      
       setIsInitializing(true);
       setPermissionError(null);
       
-    const mediaDevices = await getMediaDevices();
-      const constraints = await getOptimalVideoConstraints(device);
+      const mediaDevices = await getMediaDevices();
+      const constraints = await getOptimalVideoConstraints(device, isLandscape);
       setVideoConstraints(constraints);
       const mediaStream = await mediaDevices.getUserMedia({
         video: constraints
@@ -85,7 +85,7 @@ const [videoConstraints, setVideoConstraints] = useState<MediaTrackConstraints |
     } finally {
       setIsInitializing(false);
     }
-  }, [device]);
+  }, [device, isLandscape]);
 
   
   useEffect(() => {
@@ -101,7 +101,7 @@ const [videoConstraints, setVideoConstraints] = useState<MediaTrackConstraints |
             }
         }
       // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [device]);
+  }, [device, isLandscape]);
 
   useEffect(() => {
     if (isRecording && stream) {

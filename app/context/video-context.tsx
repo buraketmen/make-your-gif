@@ -55,6 +55,8 @@ interface VideoContextType {
   setIsRecording: (value: boolean) => void;
   isMirrored: boolean;
   setIsMirrored: (value: boolean) => void;
+  isLandscape: boolean;
+  setIsLandscape: (value: boolean) => void;
   mode: Mode;
   setMode: (mode: Mode) => void;
 
@@ -104,6 +106,7 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
   const [lastUpdatedAt, setLastUpdatedAt] = useState<number>(0);
   const [baseVideoBlob, setBaseVideoBlob] = useState<Blob | null>(null);
   const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
+  const [isLandscape, setIsLandscape] = useState(true);
   const [videoFilters, setVideoFilters] = useState({
     trim: {
       start: 0,
@@ -575,6 +578,8 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
     setIsRecording,
     isMirrored,
     setIsMirrored,
+    isLandscape,
+    setIsLandscape,
     
     frames,
     setFrames,

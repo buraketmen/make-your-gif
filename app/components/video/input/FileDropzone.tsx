@@ -4,7 +4,7 @@ import { Upload } from 'lucide-react';
 import { MAX_RECORDING_DURATION, useVideo } from '@/context/video-context';
 
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_FILE_SIZE = 64 * 1024 * 1024; // 64MB
 
 export const FileDropzone = () => {
   const [isDragging, setIsDragging] = useState(false);

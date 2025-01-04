@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { ChevronDown, Settings } from 'lucide-react';
+import { ChevronDown, SwitchCameraIcon } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,7 +34,7 @@ export const CameraSelector = ({ isController = true }: CameraSelectorProps) => 
             className="bg-rose-700/25 backdrop-blur-sm border-rose-500/25 hover:bg-rose-700 hover:border-rose-500"
             disabled={isRecording}
             >
-                <Settings className="h-4 w-4 text-white/80 hover:text-white" />
+                <SwitchCameraIcon className="h-4 w-4 text-white/80 hover:text-white" />
             </Button>
             ) : (
 

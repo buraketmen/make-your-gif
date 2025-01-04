@@ -2,7 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { Button } from "@/components/ui/button";
-import { Video, StopCircle, FlipHorizontal } from 'lucide-react';
+import { Video, StopCircle, FlipHorizontal, RotateCwSquareIcon } from 'lucide-react';
 import { useVideo } from "@/context/video-context";
 import { CameraSelector } from './CameraSelector';
 
@@ -16,9 +16,8 @@ export const RecordingControls = ({
   isRecording,
   onStartRecording,
   onStopRecording,
-
 }: RecordingControlsProps) => {
-  const { isMirrored, setIsMirrored } = useVideo();
+  const { isMirrored, setIsMirrored, isLandscape, setIsLandscape } = useVideo();
 
   return (
     <>
@@ -31,7 +30,7 @@ export const RecordingControls = ({
         <CameraSelector isController={true} />
 
         <Button
-            type="button"
+          type="button"
           variant="outline"
           size="icon"
           className="bg-rose-700/25 backdrop-blur-sm border-rose-500/25 hover:bg-rose-700 hover:border-rose-500"
@@ -39,6 +38,17 @@ export const RecordingControls = ({
           disabled={isRecording}
         >
           <FlipHorizontal className="h-4 w-4 text-white/80 hover:text-white" />
+        </Button>
+
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          className="bg-rose-700/25 backdrop-blur-sm border-rose-500/25 hover:bg-rose-700 hover:border-rose-500"
+          onClick={() => setIsLandscape(!isLandscape)}
+          disabled={isRecording}
+        >
+          <RotateCwSquareIcon className={`h-4 w-4 text-white/80 hover:text-white ${isLandscape ? 'rotate-90' : ''}`} />
         </Button>
       </motion.div>
 
@@ -51,7 +61,7 @@ export const RecordingControls = ({
         <div className="p-2 rounded-full bg-black/50 backdrop-blur-sm">
           {!isRecording ? (
             <Button
-                type="button"
+              type="button"
               onClick={onStartRecording}
               variant="default"
               className="bg-rose-500 hover:bg-rose-600 rounded-full py-2 md:py-3 px-6 md:px-8"
@@ -60,7 +70,7 @@ export const RecordingControls = ({
             </Button>
           ) : (
             <Button
-                type="button"
+              type="button"
               onClick={onStopRecording}
               variant="destructive"
               className="rounded-full py-2 md:py-3 px-6 md:px-8"
