@@ -138,8 +138,8 @@ const FrameGrid = () => {
   };
 
   const frameGridClass = selectedFrame 
-    ? 'max-h-[320px] grid grid-rows-1 md:grid-rows-none auto-cols-[180px] md:auto-cols-none grid-flow-col md:grid-flow-dense md:grid-cols-1 lg:grid-cols-4 xl:grid-cols-6 gap-2 md:gap-4 overflow-x-auto md:overflow-y-auto xl:max-h-[440px]' 
-    : 'max-h-[320px] grid grid-rows-1 md:grid-rows-none auto-cols-[180px] md:auto-cols-none grid-flow-col md:grid-flow-dense md:grid-cols-4 lg:grid-cols-8 xl:grid-cols-12 gap-2 md:gap-4 overflow-x-auto md:overflow-y-auto';
+    ? 'max-h-[320px] grid grid-rows-1 h-max-[120px] md:h-max-auto md:grid-rows-none auto-cols-[120px] md:auto-cols-none grid-flow-col md:grid-flow-dense md:grid-cols-1 lg:grid-cols-4 xl:grid-cols-6 gap-2 md:gap-4 overflow-x-auto md:overflow-y-auto xl:max-h-[440px]' 
+    : 'max-h-[320px] grid grid-rows-1 md:grid-rows-none auto-cols-[120px] md:auto-cols-none grid-flow-col md:grid-flow-dense md:grid-cols-4 lg:grid-cols-8 xl:grid-cols-12 gap-2 md:gap-4 overflow-x-auto md:overflow-y-auto';
 
   if (isFrameExtracting) {
     return <FrameSpinner />

@@ -18,19 +18,38 @@ export const VideoPreview = () => {
 
     const videoUrl = URL.createObjectURL(videoBlob);
     videoRef.current.src = videoUrl;
+
+    // Generate poster image
+    const video = videoRef.current;
+    video.currentTime = 0;
+    video.addEventListener('loadeddata', () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      ctx?.drawImage(video, 0, 0, canvas.width, canvas.height);
+      video.poster = canvas.toDataURL();
+    });
+
     return () => URL.revokeObjectURL(videoUrl);
   }, [videoBlob]);
 
   return (
-    <div className="aspect-video w-full max-h-[600px] rounded-lg overflow-hidden bg-gray-100 relative">
+    <div className="aspect-video w-full max-h-[600px] rounded-lg overflow-hidden bg-gray-100 relative flex items-center justify-center">
       <video
         ref={videoRef}
         controls={!videoFilters.crop.isCropMode}
-        className="w-full h-full object-contain shadow-[inset_0_0_5px_rgba(0,0,0,0.3),_0_0_5px_rgba(0,0,0,0.2)]"
+        className="w-full h-full object-contain"
+        playsInline
+        preload="auto"
+        style={{
+          maxHeight: '100%',
+          maxWidth: '100%'
+        }}
       />
       {videoFilters.crop.isCropMode && (
-        <div className="absolute inset-0">
-          <CropBox  />
+        <div className="absolute inset-0 flex items-center justify-center">
+          <CropBox />
         </div>
       )}
       <div className="absolute top-2 right-2 flex gap-2">

@@ -232,17 +232,18 @@ export const DrawProvider = ({ children }: DrawProviderProps) => {
     let clientX: number, clientY: number;
     
     if ('touches' in e) {
-      clientX = e.touches[0]?.clientX ?? 0;
-      clientY = e.touches[0]?.clientY ?? 0;
+      const touch = e.touches[0] || e.changedTouches[0];
+      clientX = touch?.clientX ?? 0;
+      clientY = touch?.clientY ?? 0;
     } else {
       clientX = e.clientX;
       clientY = e.clientY;
     }
     
-    return {
-      x: (clientX - rect.left) * scaleX,
-      y: (clientY - rect.top) * scaleY
-    };
+    const x = (clientX - rect.left) * scaleX;
+    const y = (clientY - rect.top) * scaleY;
+
+    return { x, y };
   }, []);
 
   const startDrawing = useCallback((e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>, canvas: HTMLCanvasElement) => {
