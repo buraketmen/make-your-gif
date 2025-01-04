@@ -21,7 +21,7 @@ export const VideoRecorder = ({ device }: { device: string }) => {
     } = useVideo();
 const [videoConstraints, setVideoConstraints] = useState<MediaTrackConstraints | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
-  const streamRef = useRef<MediaStream | null>(null);
+  const [stream, setStream] = useState<MediaStream | null>(null);
   const [permissionError, setPermissionError] = useState<string | null>(null);
   const [isControlsVisible, setIsControlsVisible] = useState(true);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -32,12 +32,15 @@ const [videoConstraints, setVideoConstraints] = useState<MediaTrackConstraints |
   const recordingTimerRef = useRef<NodeJS.Timeout>();
 
 
+
   const initializeCamera = useCallback(async () => {
     try {
+      
+      
       setIsInitializing(true);
       setPermissionError(null);
       
-      const mediaDevices = await getMediaDevices();
+    const mediaDevices = await getMediaDevices();
       const constraints = await getOptimalVideoConstraints(device);
       setVideoConstraints(constraints);
       const mediaStream = await mediaDevices.getUserMedia({
@@ -48,16 +51,13 @@ const [videoConstraints, setVideoConstraints] = useState<MediaTrackConstraints |
         throw new Error('No video tracks available');
       }
 
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-      }
-
-      streamRef.current = mediaStream;
+      setStream(mediaStream);
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
         await new Promise<void>((resolve) => {
           if (!videoRef.current) return;
           videoRef.current.onloadeddata = () => resolve();
+          // If video is already loaded, resolve immediately
           if (videoRef.current.readyState >= 2) resolve();
         });
       }
@@ -89,22 +89,22 @@ const [videoConstraints, setVideoConstraints] = useState<MediaTrackConstraints |
 
   
   useEffect(() => {
-    initializeCamera();
-    return () => {
-      if (videoRef.current) {
-        videoRef.current.srcObject = null;
-      }
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => {
-          track.stop();
-        })
-      }
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+        initializeCamera();
+        return () => {
+            if (videoRef.current) {
+                videoRef.current.srcObject = null;
+            }
+            if (stream) {
+                stream.getTracks().forEach(track => {
+                    track.stop();
+                })
+            }
+        }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [device]);
 
   useEffect(() => {
-    if (isRecording && streamRef.current) {
+    if (isRecording && stream) {
       startRecording();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -128,10 +128,10 @@ const [videoConstraints, setVideoConstraints] = useState<MediaTrackConstraints |
   }, [handleStopRecording, handleVideoRecorded, recordingTime, mimeType]);
 
   const startRecording = useCallback(() => {
-    if (!streamRef.current || !videoRef.current) return;
+    if (!stream || !videoRef.current) return;
 
     try {
-      let recordingStream = streamRef.current;
+      let recordingStream = stream;
 
       if (isMirrored) {
         const canvas = document.createElement('canvas');
@@ -144,7 +144,7 @@ const [videoConstraints, setVideoConstraints] = useState<MediaTrackConstraints |
         ctx.translate(-canvas.width, 0);
 
         const canvasStream = canvas.captureStream();
-        const audioTrack = streamRef.current.getAudioTracks()[0];
+        const audioTrack = stream.getAudioTracks()[0];
         if (audioTrack) {
           canvasStream.addTrack(audioTrack);
         }
@@ -197,7 +197,7 @@ const [videoConstraints, setVideoConstraints] = useState<MediaTrackConstraints |
       setPermissionError('This browser or device might not support video recording. Please try using a different browser (like Chrome) or device.');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [streamRef.current, handleStopRecording, isRecording, stopRecording, isMirrored]);
+  }, [stream, handleStopRecording, isRecording, stopRecording, isMirrored]);
 
   const handleMouseMove = useCallback(() => {
     setIsControlsVisible(true);
@@ -213,15 +213,15 @@ const [videoConstraints, setVideoConstraints] = useState<MediaTrackConstraints |
 
   useEffect(() => {
     const video = videoRef.current;
-    if (video && streamRef.current) {
-        video.srcObject = streamRef.current;
+    if (video && stream) {
+        video.srcObject = stream;
     }
     return () => {
         if (video) {
             video.srcObject = null;
         }
     };
-  }, []);
+  }, [stream]);
 
   useEffect(() => {
     return () => {
@@ -232,8 +232,8 @@ const [videoConstraints, setVideoConstraints] = useState<MediaTrackConstraints |
         clearInterval(recordingTimerRef.current);
       }
       
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => {
+      if (stream) {
+        stream.getTracks().forEach(track => {
           track.stop();
         })
       }
