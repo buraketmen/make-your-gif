@@ -23,7 +23,7 @@ export const VideoPreview = () => {
   }, [videoBlob]);
 
   return (
-    <div className="aspect-video w-full max-h-[600px] rounded-lg overflow-hidden bg-gray-100 relative flex items-center justify-center">
+    <div className="w-full max-h-[600px] rounded-lg overflow-hidden bg-gray-100 relative flex items-center justify-center">
       <video
         ref={videoRef}
         controls={!videoFilters.crop.isCropMode}
@@ -31,7 +31,7 @@ export const VideoPreview = () => {
         playsInline
         poster={frames[0]?.imageData}
         style={{
-          maxHeight: '100%',
+          maxHeight: 480,
           maxWidth: '100%'
         }}
         preload="metadata"

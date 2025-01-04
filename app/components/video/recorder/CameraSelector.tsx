@@ -7,20 +7,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useVideo } from "@/context/video-context";
-import { getCameras } from "@/lib/utils";
-import { useMemo, useState } from "react";
+
 
 interface CameraSelectorProps {
     isController?: boolean;
 }
 
 export const CameraSelector = ({ isController = true }: CameraSelectorProps) => {
-    const { isRecording, deviceId, setDeviceId } = useVideo();
-    const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
+    const { isRecording, deviceId, cameras, setDeviceId } = useVideo();
 
-    useMemo(() => {
-        getCameras().then(({ cameras }) => setCameras(cameras));
-    }, []);
 
     return (
 
@@ -48,6 +43,7 @@ export const CameraSelector = ({ isController = true }: CameraSelectorProps) => 
               </Button>
             )}
         </DropdownMenuTrigger>
+        {cameras.length > 0 ? (
         <DropdownMenuContent align="start" className="w-64">
             {cameras.map((camera) => (
             <DropdownMenuItem
@@ -59,6 +55,11 @@ export const CameraSelector = ({ isController = true }: CameraSelectorProps) => 
             </DropdownMenuItem>
             ))}
         </DropdownMenuContent>
+        ) : (
+            <DropdownMenuContent>
+                <DropdownMenuItem>No cameras found</DropdownMenuItem>
+            </DropdownMenuContent>
+        )}
         </DropdownMenu>
         
     );

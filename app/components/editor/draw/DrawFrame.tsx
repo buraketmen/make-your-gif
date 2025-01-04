@@ -105,7 +105,7 @@ export const DrawFrame = () => {
             style={{ 
               aspectRatio: selectedFrame ? `${selectedFrame.width}/${selectedFrame.height}` : '16/9',
               width: '100%',
-              height: 'calc(100% - 32px)',
+              maxHeight: 'calc(100% - 32px)',
               touchAction: 'none'
             }}
           >

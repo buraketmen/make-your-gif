@@ -42,6 +42,10 @@ export const GifPreview = () => {
               fill
               className="object-contain"
               unoptimized
+              style={{
+                maxHeight: 480,
+                maxWidth: '100%'
+              }}
             />
           </div>
         ) : (

@@ -9,7 +9,8 @@ import {
   calculateCropDimensions, 
   getSupportedMimeType,
   getVideoOutputFormat,
-  getFFmpegCodecArgs 
+  getFFmpegCodecArgs,
+  getCameras
 } from '@/lib/utils';
 
 export const TARGET_FPS = 30;
@@ -32,8 +33,10 @@ interface VideoFilters {
 interface VideoContextType {
   mimeType: string;
   lastUpdatedAt: number;
-  deviceId: string;
-  setDeviceId: (deviceId: string) => void;
+  deviceId: string | null;
+  setDeviceId: (deviceId: string | null) => void;
+  cameras: MediaDeviceInfo[];
+  refreshCameras: () => Promise<void>;
   baseVideoBlob: Blob | null;
   setBaseVideoBlob: (blob: Blob | null) => void;
   videoBlob: Blob | null;
@@ -102,7 +105,8 @@ interface VideoProviderProps {
 export const VideoProvider = ({ children }: VideoProviderProps) => {
   const ffmpegRef = useRef<FFmpeg | null>(null);
   const mimeType = getSupportedMimeType();
-  const [deviceId, setDeviceId] = useState<string>('');
+  const [deviceId, setDeviceId] = useState<string | null>(null);
+  const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<number>(0);
   const [baseVideoBlob, setBaseVideoBlob] = useState<Blob | null>(null);
   const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
@@ -148,8 +152,38 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
   }, [baseVideoBlob, videoFilters.crop.isActive, videoFilters.trim.isActive]);
 
   useEffect(() => {
-    
+    const fetchCameras = async () => {
+      const allCameras = await getCameras();
+      setCameras(allCameras.cameras);
+      if (allCameras.deviceIds.length > 0) {
+        setDeviceId(allCameras.deviceIds[0]);
+      }
+    };
+    fetchCameras();
   }, []);
+
+    const refreshCameras = useCallback(async () => {
+        try {
+            const allCameras = await getCameras();
+            setCameras(allCameras.cameras);
+        
+        if (allCameras.deviceIds.length > 0 && !deviceId) {
+            setDeviceId(allCameras.deviceIds[0]);
+        }
+        } catch (error) {
+        console.error('Error getting camera devices:', error);
+        }
+  }, [deviceId]);
+
+  useEffect(() => {
+    refreshCameras();
+    
+    navigator.mediaDevices?.addEventListener('devicechange', refreshCameras);
+    
+    return () => {
+      navigator.mediaDevices?.removeEventListener('devicechange', refreshCameras);
+    };
+  }, [refreshCameras]);
 
   const loadFFmpeg = useCallback(async () => {
     if (!ffmpegRef.current) {
@@ -560,6 +594,9 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
     mimeType,
     deviceId,
     setDeviceId,
+    cameras,
+    refreshCameras,
+    
     lastUpdatedAt,
     gifUrl,
     processes,

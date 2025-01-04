@@ -2,7 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { Button } from "@/components/ui/button";
-import { Video, StopCircle, FlipHorizontal } from 'lucide-react';
+import { Video, StopCircle, FlipHorizontal, RotateCwSquareIcon } from 'lucide-react';
 import { useVideo } from "@/context/video-context";
 import { CameraSelector } from './CameraSelector';
 
@@ -17,7 +17,7 @@ export const RecordingControls = ({
   onStartRecording,
   onStopRecording,
 }: RecordingControlsProps) => {
-  const { isMirrored, setIsMirrored } = useVideo();
+  const { isMirrored, setIsMirrored, isLandscape, setIsLandscape } = useVideo();
 
   return (
     <>
@@ -40,7 +40,7 @@ export const RecordingControls = ({
           <FlipHorizontal className="h-4 w-4 text-white/80 hover:text-white" />
         </Button>
 
-        {/*<Button
+        <Button
           type="button"
           variant="outline"
           size="icon"
@@ -49,7 +49,7 @@ export const RecordingControls = ({
           disabled={isRecording}
         >
           <RotateCwSquareIcon className={`h-4 w-4 text-white/80 hover:text-white ${isLandscape ? 'rotate-90' : ''}`} />
-        </Button> */}
+        </Button>
       </motion.div>
 
       <motion.div
