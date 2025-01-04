@@ -7,6 +7,9 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+export const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+
 interface LegacyNavigator extends Navigator {
   webkitGetUserMedia?: (
     constraints: MediaStreamConstraints,
@@ -363,21 +366,25 @@ export const getOptimalVideoConstraints = async (deviceId?: string, isLandscape:
     const device = devices.find(d => d.kind === 'videoinput' && (!deviceId || d.deviceId === deviceId));
     
     if (device) {
-      // Mobil cihazlarda kamera oryantasyonunu ayarla
       const videoConstraints: MediaTrackConstraints = {
         deviceId: device.deviceId,
-        width: { min: 480, ideal: 1280, max: 1920 },
-        height: { min: 480, ideal: 720, max: 1080 }
+        facingMode: 'environment'
       };
 
       if (isMobile) {
-        // Mobil cihazlarda kamera oryantasyonunu ayarla
-        videoConstraints.facingMode = {
-          exact: isLandscape ? 'environment-landscape' : 'environment-portrait'
-        };
+        // Mobilde yatay/dikey mod için en-boy oranını ayarla
+        videoConstraints.aspectRatio = { ideal: isLandscape ? 16/9 : 9/16 };
+        
+        if (isLandscape) {
+          videoConstraints.width = { min: 480, ideal: 1280, max: 1920 };
+          videoConstraints.height = { min: 480, ideal: 720, max: 1080 };
+        } else {
+          videoConstraints.width = { min: 480, ideal: 720, max: 1080 };
+          videoConstraints.height = { min: 480, ideal: 1280, max: 1920 };
+        }
       } else {
-        // Mobil olmayan cihazlarda sadece arka kamerayı tercih et
-        videoConstraints.facingMode = 'environment';
+        videoConstraints.width = { min: 480, ideal: 1280, max: 1920 };
+        videoConstraints.height = { min: 480, ideal: 720, max: 1080 };
       }
 
       const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -389,13 +396,18 @@ export const getOptimalVideoConstraints = async (deviceId?: string, isLandscape:
       const settings = track.getSettings();
 
       // Kamera ayarlarını kontrol et
-      if (isMobile && capabilities.facingMode) {
+      if (isMobile && capabilities.aspectRatio) {
         try {
-          await track.applyConstraints({
-            facingMode: {
-              exact: isLandscape ? 'environment-landscape' : 'environment-portrait'
-            }
-          });
+          const orientationConstraints: MediaTrackConstraints = {
+            aspectRatio: { ideal: isLandscape ? 16/9 : 9/16 },
+            width: isLandscape 
+              ? { min: 480, ideal: settings.width || 1280, max: 1920 }
+              : { min: 480, ideal: settings.height || 720, max: 1080 },
+            height: isLandscape
+              ? { min: 480, ideal: settings.height || 720, max: 1080 }
+              : { min: 480, ideal: settings.width || 1280, max: 1920 }
+          };
+          await track.applyConstraints(orientationConstraints);
         } catch (error) {
           console.warn('Camera orientation change not supported:', error);
         }
@@ -405,16 +417,9 @@ export const getOptimalVideoConstraints = async (deviceId?: string, isLandscape:
 
       if (capabilities) {
         const constraints: VideoConstraints = {
-          width: { 
-            min: Math.min(capabilities.width?.min || 480, settings.width || 480),
-            ideal: settings.width || 1280,
-            max: capabilities.width?.max || 1920
-          },
-          height: { 
-            min: Math.min(capabilities.height?.min || 480, settings.height || 480),
-            ideal: settings.height || 720,
-            max: capabilities.height?.max || 1080
-          }
+          width: { min: 480, ideal: 1280, max: 1920 },
+          height: { min: 480, ideal: 720, max: 1080 },
+          facingMode: 'environment'
         };
 
         if (deviceId) {
@@ -422,11 +427,31 @@ export const getOptimalVideoConstraints = async (deviceId?: string, isLandscape:
         }
 
         if (isMobile) {
-          constraints.facingMode = {
-            exact: isLandscape ? 'environment-landscape' : 'environment-portrait'
-          };
-        } else {
-          constraints.facingMode = 'environment';
+          constraints.aspectRatio = { ideal: isLandscape ? 16/9 : 9/16 };
+          
+          if (isLandscape) {
+            constraints.width = { 
+              min: Math.min(capabilities.width?.min || 480, settings.width || 480),
+              ideal: settings.width || 1280,
+              max: capabilities.width?.max || 1920
+            };
+            constraints.height = { 
+              min: Math.min(capabilities.height?.min || 480, settings.height || 480),
+              ideal: settings.height || 720,
+              max: capabilities.height?.max || 1080
+            };
+          } else {
+            constraints.width = { 
+              min: Math.min(capabilities.width?.min || 480, settings.width || 480),
+              ideal: settings.height || 720,
+              max: capabilities.width?.max || 1080
+            };
+            constraints.height = { 
+              min: Math.min(capabilities.height?.min || 480, settings.height || 480),
+              ideal: settings.width || 1280,
+              max: capabilities.height?.max || 1920
+            };
+          }
         }
 
         return constraints;
@@ -434,22 +459,48 @@ export const getOptimalVideoConstraints = async (deviceId?: string, isLandscape:
     }
 
     // Varsayılan ayarları kullan
-    return {
+    const defaultResponse: VideoConstraints = {
       width: { min: 480, ideal: 1280, max: 1920 },
       height: { min: 480, ideal: 720, max: 1080 },
-      facingMode: isMobile ? {
-        exact: isLandscape ? 'environment-landscape' : 'environment-portrait'
-      } : 'environment',
+      facingMode: 'environment',
       ...(deviceId && { deviceId: { exact: deviceId } })
     };
 
+    if (isMobile) {
+      defaultResponse.aspectRatio = { ideal: isLandscape ? 16/9 : 9/16 };
+      
+      if (isLandscape) {
+        defaultResponse.width = { min: 480, ideal: 1280, max: 1920 };
+        defaultResponse.height = { min: 480, ideal: 720, max: 1080 };
+      } else {
+        defaultResponse.width = { min: 480, ideal: 720, max: 1080 };
+        defaultResponse.height = { min: 480, ideal: 1280, max: 1920 };
+      }
+    }
+
+    return defaultResponse;
+
   } catch (error) {
     console.warn('Error getting optimal video constraints:', error);
-    return {
-      ...defaultConstraints,
-      facingMode: isMobile ? {
-        exact: isLandscape ? 'environment-landscape' : 'environment-portrait'
-      } : 'environment'
+    const fallbackResponse: VideoConstraints = {
+      width: { min: 480, ideal: 1280, max: 1920 },
+      height: { min: 480, ideal: 720, max: 1080 },
+      facingMode: 'environment',
+      ...(deviceId && { deviceId: { exact: deviceId } })
     };
+
+    if (isMobile) {
+      fallbackResponse.aspectRatio = { ideal: isLandscape ? 16/9 : 9/16 };
+      
+      if (isLandscape) {
+        fallbackResponse.width = { min: 480, ideal: 1280, max: 1920 };
+        fallbackResponse.height = { min: 480, ideal: 720, max: 1080 };
+      } else {
+        fallbackResponse.width = { min: 480, ideal: 720, max: 1080 };
+        fallbackResponse.height = { min: 480, ideal: 1280, max: 1920 };
+      }
+    }
+
+    return fallbackResponse;
   }
 }; 
