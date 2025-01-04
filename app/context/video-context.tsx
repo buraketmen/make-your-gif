@@ -490,14 +490,19 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
       const video = document.createElement('video');
       video.preload = 'metadata';
       
+      const videoUrl = URL.createObjectURL(baseVideoBlob);
+      
       await new Promise((resolve) => {
         video.onloadedmetadata = () => resolve(null);
-        video.src = URL.createObjectURL(baseVideoBlob);
+        video.src = videoUrl;
       });
 
       const videoWidth = video.videoWidth;
       const videoHeight = video.videoHeight;
-      URL.revokeObjectURL(video.src);
+      
+      // Clean up resources
+      URL.revokeObjectURL(videoUrl);
+      video.src = '';
       video.remove();
 
       const { format, codec } = getVideoOutputFormat(mimeType);
@@ -506,32 +511,41 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
         output: `output.${format}`
       }
 
-      await ffmpeg.writeFile(fileNames.input, await fetchFile(baseVideoBlob));
+      try {
+        await ffmpeg.writeFile(fileNames.input, await fetchFile(baseVideoBlob));
 
-      const cropDimensions = calculateCropDimensions(
-        videoFilters.crop.coordinates,
-        videoWidth,
-        videoHeight
-      );
+        const cropDimensions = calculateCropDimensions(
+          videoFilters.crop.coordinates,
+          videoWidth,
+          videoHeight
+        );
 
-      await ffmpeg.exec([
-        '-i', fileNames.input,
-        '-vf', cropDimensions.ffmpegFilter,
-        ...getFFmpegCodecArgs(codec),
-        '-r', '30',
-        fileNames.output
-      ]);
+        await ffmpeg.exec([
+          '-i', fileNames.input,
+          '-vf', cropDimensions.ffmpegFilter,
+          ...getFFmpegCodecArgs(codec),
+          '-r', '30',
+          fileNames.output
+        ]);
 
-      const data = await ffmpeg.readFile(fileNames.output);
-      const croppedBlob = new Blob([data], { type: mimeType });
-      
-      setVideoBlob(croppedBlob);
-      setVideoFilters(prev => ({
-        ...prev,
-        crop: { ...prev.crop, isActive: true, isCropMode: false }
-      }));
+        const data = await ffmpeg.readFile(fileNames.output);
+        const croppedBlob = new Blob([data], { type: mimeType });
+        
+        // Clean up FFmpeg files
+        await ffmpeg.deleteFile(fileNames.input);
+        await ffmpeg.deleteFile(fileNames.output);
+        
+        setVideoBlob(croppedBlob);
+        setVideoFilters(prev => ({
+          ...prev,
+          crop: { ...prev.crop, isActive: true, isCropMode: false }
+        }));
 
-      await extractFramesForVideo(croppedBlob);
+        await extractFramesForVideo(croppedBlob);
+      } catch (error) {
+        console.error('Error during FFmpeg operations:', error);
+        throw error;
+      }
     } catch (error) {
       console.error('Error cropping video:', error);
     } finally {
