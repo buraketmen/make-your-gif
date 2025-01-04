@@ -11,7 +11,7 @@ interface CameraErrorProps {
 
 export const CameraError = ({ errorMessage, onRetry }: CameraErrorProps) => {
   return (
-    <div className="h-full flex items-center justify-center">
+    
       <div className="text-center p-4">
         <div className="mb-4">
           <VideoIcon className="w-12 h-12 text-rose-500 mx-auto" />
@@ -28,6 +28,5 @@ export const CameraError = ({ errorMessage, onRetry }: CameraErrorProps) => {
           </Button>
         </div>
       </div>
-    </div>
   );
 }; 

@@ -7,7 +7,7 @@ import { RecordingControls } from './RecordingControls';
 import { CameraError } from './CameraError';
 import { RecordingIndicator } from './RecordingIndicator';
 import { MAX_RECORDING_DURATION, useVideo } from '@/context/video-context';
-import Spinner from '@/components/Spinner';
+import {Spinner, SpinnerText} from '@/components/Spinner';
 import { getMediaDevices, getOptimalVideoConstraints } from '@/lib/utils';
 
 export const VideoRecorder = ({ device }: { device: string }) => {
@@ -19,6 +19,7 @@ export const VideoRecorder = ({ device }: { device: string }) => {
         handleStopRecording,
         handleVideoRecorded,
     } = useVideo();
+const [videoConstraints, setVideoConstraints] = useState<MediaTrackConstraints | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [permissionError, setPermissionError] = useState<string | null>(null);
@@ -40,9 +41,10 @@ export const VideoRecorder = ({ device }: { device: string }) => {
       setPermissionError(null);
       
     const mediaDevices = await getMediaDevices();
-      const videoConstraints = await getOptimalVideoConstraints(device);
+      const constraints = await getOptimalVideoConstraints(device);
+      setVideoConstraints(constraints);
       const mediaStream = await mediaDevices.getUserMedia({
-        video: videoConstraints
+        video: constraints
       });
 
       if (!mediaStream.getVideoTracks().length) {
@@ -248,12 +250,17 @@ export const VideoRecorder = ({ device }: { device: string }) => {
   }, [isRecording]);
 
   if (permissionError) {
-    return <CameraError errorMessage={permissionError} onRetry={initializeCamera} />;
+    return <div className="h-full flex items-center justify-center min-h-[300px] md:min-h-[400px]">
+        <CameraError errorMessage={permissionError} onRetry={initializeCamera} />
+        </div>
   }
 
   if (isInitializing) {
-    return <div className="flex items-center justify-center h-full">
-      <Spinner size={12} />
+    return <div className="h-full flex items-center justify-center min-h-[300px] md:min-h-[400px]">
+        <div className="flex flex-col items-center justify-center gap-4">
+            <Spinner size={12} />
+            <SpinnerText text="Initializing camera..." />
+        </div>
     </div>;
   }
 
@@ -268,7 +275,7 @@ export const VideoRecorder = ({ device }: { device: string }) => {
         autoPlay
         playsInline
         muted
-        className={`w-full h-full aspect-video bg-gray-100 rounded-lg ${isMirrored ? 'scale-x-[-1]' : ''}`}
+        className={`w-full h-full  bg-gray-100 rounded-lg ${isMirrored ? 'scale-x-[-1]' : ''} ${videoConstraints ? `aspect-${videoConstraints.aspectRatio}` : ''}`}
       />
       
       <AnimatePresence>

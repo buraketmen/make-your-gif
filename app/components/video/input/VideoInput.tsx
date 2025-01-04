@@ -23,7 +23,7 @@ export function VideoInput() {
       className="max-w-4xl mx-auto"
     >
       <Card className="p-2 md:p-6 shadow-lg border-0">
-        <div className="mb-6 flex justify-center">
+        <div className="mb-2 md:mb-6 flex justify-center">
           <SegmentedControl mode={mode} onChange={setMode} disabled={isRecording} />
         </div>
 

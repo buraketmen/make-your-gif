@@ -9,12 +9,11 @@ export const RecordMode = () => {
 
   return (
     <motion.div
-
       initial={{ opacity: 0, x: -20 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: 20 }}
     >
-      <div className="aspect-video  rounded-xl overflow-hidden ">
+      <div className="rounded-md md:rounded-xl overflow-hidden">
         <VideoRecorder key={deviceId} device={deviceId} />
       </div>
     </motion.div>
