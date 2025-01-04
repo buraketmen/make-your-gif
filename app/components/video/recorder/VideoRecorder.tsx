@@ -134,9 +134,8 @@ export const VideoRecorder = ({ device }: { device: string | null }) => {
     }, [isRecording]);
     
 
-    const stopRecording = useCallback(() => {
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-            const finalTime = recordingTime;
+    const finalizeRecording = useCallback((duration: number) => {
+        if (mediaRecorderRef.current?.state === 'recording') {
             mediaRecorderRef.current.requestData();
             mediaRecorderRef.current.stop();
             handleStopRecording();
@@ -145,10 +144,32 @@ export const VideoRecorder = ({ device }: { device: string | null }) => {
                 const blob = new Blob(chunksRef.current, { 
                     type: mimeType
                 });
-                handleVideoRecorded(blob, finalTime);
+                handleVideoRecorded(blob, duration);
+                
+                // Clean up recording resources
+                if (mediaRecorderRef.current) {
+                    mediaRecorderRef.current.ondataavailable = null;
+                    mediaRecorderRef.current.onstop = null;
+                    mediaRecorderRef.current = null;
+                }
+                chunksRef.current = [];
+
+                // Clean up any canvas stream if it exists
+                if (stream) {
+                    const tracks = stream.getTracks();
+                    tracks.forEach(track => {
+                        if (track.readyState === 'live') {
+                            track.stop();
+                        }
+                    });
+                }
             };
         }
-    }, [handleStopRecording, handleVideoRecorded, recordingTime, mimeType]);
+    }, [handleStopRecording, handleVideoRecorded, mimeType, stream]);
+
+    const stopRecording = useCallback(() => {
+        finalizeRecording(recordingTime);
+    }, [finalizeRecording, recordingTime]);
 
     const startRecording = useCallback(() => {
         if (!stream || !videoRef.current) return;
@@ -203,16 +224,7 @@ export const VideoRecorder = ({ device }: { device: string | null }) => {
 
             setTimeout(() => {
                 if (mediaRecorderRef.current?.state === 'recording' && isRecording) {
-                    mediaRecorderRef.current.requestData();
-                    mediaRecorderRef.current.stop();
-                    handleStopRecording();
-                    
-                    mediaRecorderRef.current.onstop = () => {
-                        const blob = new Blob(chunksRef.current, { 
-                            type: mimeType
-                        });
-                        handleVideoRecorded(blob, MAX_RECORDING_DURATION);
-                    };
+                    finalizeRecording(MAX_RECORDING_DURATION);
                 }
             }, MAX_RECORDING_DURATION * 1000);
         } catch (error) {
