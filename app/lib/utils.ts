@@ -60,6 +60,7 @@ export const getCameras = async (): Promise<{cameras: MediaDeviceInfo[], deviceI
       deviceIds: []
     };
   }
+  await mediaDevices.getUserMedia({ video: true });
   const devices = await mediaDevices.enumerateDevices();
   const videoDevices = devices.filter(device => device.kind === 'videoinput');
   return {
@@ -307,7 +308,6 @@ export const getVideoOutputFormat = (mimeType: string): VideoFormat => {
       codec: 'h264'
     };
   }
-  // Default to WebM/VP8 as fallback
   return {
     format: 'webm',
     codec: 'vp8'
@@ -347,52 +347,80 @@ export const getFFmpegCodecArgs = (codec: string): string[] => {
 }; 
 
 interface VideoConstraints {
-  width: MediaTrackConstraints['width'];
-  height: MediaTrackConstraints['height'];
+  width?: MediaTrackConstraints['width'];
+  height?: MediaTrackConstraints['height'];
+  frameRate: MediaTrackConstraints['frameRate'];
   deviceId?: MediaTrackConstraints['deviceId'];
-  aspectRatio?: MediaTrackConstraints['aspectRatio'];
+  aspectRatio: MediaTrackConstraints['aspectRatio'];
   facingMode?: MediaTrackConstraints['facingMode'];
 }
 
+interface Resolution {
+    min: number;
+    ideal: number;
+    max: number;
+}
+
+interface Resolutions {
+    landscape: {
+        height: Resolution;
+        width: Resolution;
+    };
+    portrait: {
+        height: Resolution;
+        width: Resolution;
+    };
+}
+
+
+
 export const getOptimalVideoConstraints = async (deviceId: string | null, isLandscape: boolean = true): Promise<VideoConstraints> => {
+    const resolutions: Resolutions= {
+        landscape: {
+            height: {
+                min: 360,
+                ideal: 720,
+                max: 1080
+            },
+            width: {
+                min: 640,
+                ideal: 1280,
+                max: 1920
+            }
+        },
+        portrait: {
+            height: {
+                min: 640,
+                ideal: 1280,
+                max: 1920
+            },
+            width: {
+                min: 360,
+                ideal: 720,
+                max: 1080
+            }
+        }
+    }
   const constraints: VideoConstraints = {
-    width: isLandscape 
-      ? { min: 720, ideal: 1280, max: 1920 }
-      : { min: 640, ideal: 1024, max: 1440 },
-    height: isLandscape 
-      ? { min: 480, ideal: 720, max: 1080 }
-      : { min: 480, ideal: 768, max: 1080 },
-    aspectRatio: { ideal: isLandscape ? 16/9 : 4/3 },
+    width: isLandscape ? resolutions.landscape.width : resolutions.portrait.width,
+    height: isLandscape ? resolutions.landscape.height : resolutions.portrait.height,
+    frameRate: { min: 15, ideal: 30, max: 60 },
+    aspectRatio: { ideal: isLandscape ? 16/9 : 9/16 },
     facingMode: 'environment',
     ...(deviceId && { deviceId: { exact: deviceId } })
   };
 
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: constraints });
-    const track = stream.getVideoTracks()[0];
-    const settings = track.getSettings();
-    stream.getTracks().forEach(track => track.stop());
+    const mediaDevices = await getMediaDevices();
+    await mediaDevices.getUserMedia({ video: constraints });
 
-    const baseConstraints = constraints.width as { min: number; ideal: number; max: number };
-    const baseHeightConstraints = constraints.height as { min: number; ideal: number; max: number };
-
-    return {
-      aspectRatio: constraints.aspectRatio,
-      facingMode: constraints.facingMode,
-      deviceId: constraints.deviceId,
-      width: {
-        min: baseConstraints.min,
-        max: baseConstraints.max,
-        ideal: settings.width || (isLandscape ? 1280 : 1024)
-      },
-      height: {
-        min: baseHeightConstraints.min,
-        max: baseHeightConstraints.max,
-        ideal: settings.height || (isLandscape ? 720 : 768)
-      }
-    };
-  } catch (error) {
-    console.warn('Error getting optimal video constraints:', error);
     return constraints;
+  } catch (error) {
+    console.error('Error during video constraints:', error);
+    return {
+      frameRate: { min: 15, ideal: 30, max: 60 },
+        aspectRatio: { ideal: isLandscape ? 16/9 : 9/16 },
+        ...(deviceId && { deviceId: { exact: deviceId } })
+    };
   }
 }; 

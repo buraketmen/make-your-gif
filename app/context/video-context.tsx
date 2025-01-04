@@ -154,9 +154,13 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
   useEffect(() => {
     const fetchCameras = async () => {
       const allCameras = await getCameras();
-      setCameras(allCameras.cameras);
+      
       if (allCameras.deviceIds.length > 0) {
-        setDeviceId(allCameras.deviceIds[0]);
+        const newDeviceId = allCameras.deviceIds[0];
+        if (newDeviceId) {
+          setCameras(allCameras.cameras);
+          setDeviceId(newDeviceId);
+        }
       }
     };
     fetchCameras();
@@ -165,13 +169,15 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
     const refreshCameras = useCallback(async () => {
         try {
             const allCameras = await getCameras();
-            setCameras(allCameras.cameras);
-        
-        if (allCameras.deviceIds.length > 0 && !deviceId) {
-            setDeviceId(allCameras.deviceIds[0]);
-        }
+            
+            if (allCameras.deviceIds.length > 0 && !deviceId) {
+                if (allCameras.deviceIds[0]) {
+                    setDeviceId(allCameras.deviceIds[0]);
+                    setCameras(allCameras.cameras);
+                }
+            }
         } catch (error) {
-        console.error('Error getting camera devices:', error);
+            console.error('Error getting camera devices:', error);
         }
   }, [deviceId]);
 

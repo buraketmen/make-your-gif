@@ -17,7 +17,6 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
     const { format, quality, width, height } = frameData;
 
     try {
-      // Create a new canvas and put the image data
       const canvas = new OffscreenCanvas(width, height);
       const ctx = canvas.getContext('2d')!;
       ctx.putImageData(imageData, 0, 0);

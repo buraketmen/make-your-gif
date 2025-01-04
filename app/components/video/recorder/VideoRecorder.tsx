@@ -59,7 +59,7 @@ export const VideoRecorder = ({ device }: { device: string | null }) => {
             const mediaDevices = await getMediaDevices();
             const constraints = await getOptimalVideoConstraints(device, isLandscape);
             const mediaStream = await mediaDevices.getUserMedia({
-                video: constraints
+                video: constraints,
             });
 
             if (!mediaStream.getVideoTracks().length) {
@@ -101,14 +101,14 @@ export const VideoRecorder = ({ device }: { device: string | null }) => {
         }
     }, [device, isLandscape]);
 
-    const refreshCamerasAction = useCallback(async () => {
-        await refreshCameras();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
     useEffect(() => {
+
+        const refreshCamerasAction = async () => {
+            await refreshCameras();
+        }
         // Only initialize camera if device is not empty
         if (!device) {
+            refreshCamerasAction();
             return;
         }
 
@@ -132,13 +132,6 @@ export const VideoRecorder = ({ device }: { device: string | null }) => {
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isRecording]);
-
-    useEffect(() => {
-        if (!device) {
-            refreshCamerasAction();
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [device]);
     
 
     const stopRecording = useCallback(() => {

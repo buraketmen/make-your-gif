@@ -42,14 +42,12 @@ const processFrameInWorker = async (
 ): Promise<string> => {
   const worker = getFrameWorker();
   
-  // Create a new canvas and transfer its bitmap
   const transferCanvas = new OffscreenCanvas(frameData.width, frameData.height);
   const transferCtx = transferCanvas.getContext('2d')!;
   const bitmap = await createImageBitmap(sourceCanvas);
   transferCtx.drawImage(bitmap, 0, 0);
   bitmap.close();
   
-  // Get the image data instead of transferring the canvas
   const imageData = transferCtx.getImageData(0, 0, frameData.width, frameData.height);
   
   return new Promise((resolve, reject) => {
@@ -104,7 +102,6 @@ export const extractVideoFrames = async (options: VideoFrameOptions): Promise<Vi
 
   const interval = (settings.endTime - settings.startTime) / (settings.count - 1);
 
-  // Set dimensions
   const videoDimensionRatio = video.videoWidth / video.videoHeight;
   if (!settings.width && !settings.height) {
     settings.width = video.videoWidth;
@@ -119,7 +116,6 @@ export const extractVideoFrames = async (options: VideoFrameOptions): Promise<Vi
     settings.onLoad();
   }
 
-  // Prepare frame extraction tasks
   const tasks = Array.from({ length: settings.count }, (_, i) => {
     const targetTime = useOffsets 
       ? settings.offsets![i]
@@ -163,7 +159,6 @@ export const extractVideoFrames = async (options: VideoFrameOptions): Promise<Vi
             image
           };
         } catch (error) {
-          // Fallback to non-worker method if worker fails
           console.error(error);
           const bitmap = await createImageBitmap(canvas);
           const tempCanvas = new OffscreenCanvas(canvas.width, canvas.height);
