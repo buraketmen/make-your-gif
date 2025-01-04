@@ -7,6 +7,9 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+export const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+
 interface LegacyNavigator extends Navigator {
   webkitGetUserMedia?: (
     constraints: MediaStreamConstraints,
@@ -26,7 +29,7 @@ interface LegacyNavigator extends Navigator {
 }
 
 
-export const getMediaDevices = (): MediaDevices => {
+export const getMediaDevices = async (): Promise<MediaDevices> => {
      if ((navigator as unknown as Record<string, unknown>).mediaDevices === undefined) {
         (navigator as unknown as Record<string, unknown>).mediaDevices = {};
       }
@@ -50,7 +53,7 @@ export const getMediaDevices = (): MediaDevices => {
 }
 
 export const getCameras = async (): Promise<{cameras: MediaDeviceInfo[], deviceIds: string[]}> => {
-  const mediaDevices = getMediaDevices();
+  const mediaDevices = await getMediaDevices();
   const devices = await mediaDevices.enumerateDevices();
   const videoDevices = devices.filter(device => device.kind === 'videoinput');
   return {
@@ -347,8 +350,8 @@ interface VideoConstraints {
 
 export const getOptimalVideoConstraints = async (deviceId?: string): Promise<VideoConstraints> => {
   const defaultConstraints: VideoConstraints = {
-    width: { min: 320, ideal: 1280, max: 1920 },
-    height: { min: 240, ideal: 720, max: 1080 }
+    width: { min: 480, ideal: 1280, max: 1920 },
+    height: { min: 480, ideal: 720, max: 1080 }
   };
 
   if (deviceId) {
@@ -360,98 +363,60 @@ export const getOptimalVideoConstraints = async (deviceId?: string): Promise<Vid
     const device = devices.find(d => d.kind === 'videoinput' && (!deviceId || d.deviceId === deviceId));
     
     if (device) {
+      const videoConstraints: MediaTrackConstraints = {
+        deviceId: device.deviceId,
+        width: { min: 480, ideal: 1280, max: 1920 },
+        height: { min: 480, ideal: 720, max: 1080 },
+        facingMode: 'environment'
+      };
+
       const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
-          deviceId: device.deviceId,
-          facingMode: 'environment', // Prefer back camera on mobile
-          width: { min: 320, ideal: 1280, max: 1920 },
-          height: { min: 240, ideal: 720, max: 1080 }
-        } 
+        video: videoConstraints
       });
+
       const track = stream.getVideoTracks()[0];
       const capabilities = track.getCapabilities();
-      const settings = track.getSettings(); // Get actual settings being used
+      const settings = track.getSettings();
+
       stream.getTracks().forEach(track => track.stop());
 
       if (capabilities) {
         const constraints: VideoConstraints = {
           width: { 
-            min: Math.min(capabilities.width?.min || 320, settings.width || 320),
+            min: Math.min(capabilities.width?.min || 480, settings.width || 480),
             ideal: settings.width || 1280,
             max: capabilities.width?.max || 1920
           },
           height: { 
-            min: Math.min(capabilities.height?.min || 240, settings.height || 240),
+            min: Math.min(capabilities.height?.min || 480, settings.height || 480),
             ideal: settings.height || 720,
             max: capabilities.height?.max || 1080
-          }
+          },
+          facingMode: 'environment'
         };
 
         if (deviceId) {
           constraints.deviceId = { exact: deviceId };
         }
 
-        if (capabilities.aspectRatio) {
-          constraints.aspectRatio = {
-            min: capabilities.aspectRatio.min || 1,
-            ideal: settings.aspectRatio || 16/9,
-            max: capabilities.aspectRatio.max || 2
-          };
-        }
-
         return constraints;
       }
     }
 
-    const commonResolutions = [
-      { width: 1920, height: 1080 }, // 16:9 Full HD
-      { width: 1280, height: 720 },  // HD
-      { width: 854, height: 480 },   // 480p
-      { width: 640, height: 360 },   // 360p
-      { width: 320, height: 240 }    // Minimum acceptable
-    ];
-
-    for (const resolution of commonResolutions) {
-      try {
-        const testConstraints: VideoConstraints = {
-          width: { min: 320, ideal: resolution.width, max: 1920 },
-          height: { min: 240, ideal: resolution.height, max: 1080 },
-          ...(deviceId && { deviceId: { exact: deviceId } })
-        };
-        
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-          video: {
-            ...testConstraints,
-            facingMode: 'environment' // Prefer back camera on mobile
-          }
-        });
-        
-        const track = stream.getVideoTracks()[0];
-        const settings = track.getSettings();
-        stream.getTracks().forEach(track => track.stop());
-        
-        return {
-          width: { min: 320, ideal: settings.width || resolution.width, max: 1920 },
-          height: { min: 240, ideal: settings.height || resolution.height, max: 1080 },
-          ...(deviceId && { deviceId: { exact: deviceId } })
-        };
-      } catch (error) {
-        console.warn('Error getting optimal video constraints:', error);
-        continue;
-      }
-    }
-
     return {
-      width: { min: 320, ideal: 640, max: 1920 },
-      height: { min: 240, ideal: 480, max: 1080 },
+      width: { min: 480, ideal: 1280, max: 1920 },
+      height: { min: 480, ideal: 720, max: 1080 },
       facingMode: 'environment',
       ...(deviceId && { deviceId: { exact: deviceId } })
     };
+
   } catch (error) {
     console.warn('Error getting optimal video constraints:', error);
     return {
-      ...defaultConstraints,
-      facingMode: 'environment'
+      width: { min: 480, ideal: 1280, max: 1920 },
+      height: { min: 480, ideal: 720, max: 1080 },
+      facingMode: 'environment',
+      ...(deviceId && { deviceId: { exact: deviceId } })
     };
   }
 }; 

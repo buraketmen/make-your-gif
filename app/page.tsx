@@ -15,7 +15,7 @@ const ConversionAnimation = () => {
       exit={{ opacity: 0 }}
       className="flex flex-col items-center justify-center p-12 gap-2"
     >
-      <div className="relative">
+      <div className="relative flex flex-col items-center justify-center gap-2">
         <Spinner size={12} />
         <SpinnerText text="Processing video..." />
       </div>

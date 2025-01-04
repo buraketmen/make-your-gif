@@ -34,9 +34,9 @@ interface DrawContextType {
   drawFrame: (frame: DrawingFrame, canvas: HTMLCanvasElement) => void;
   copyFromPrevious: () => void;
 
-  startDrawing: (e: React.MouseEvent<HTMLCanvasElement>, canvas: HTMLCanvasElement) => void;
-  draw: (e: React.MouseEvent<HTMLCanvasElement>, canvas: HTMLCanvasElement) => void;
-  endDrawing: (e: React.MouseEvent<HTMLCanvasElement>, canvas: HTMLCanvasElement) => void;
+  startDrawing: (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>, canvas: HTMLCanvasElement) => void;
+  draw: (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>, canvas: HTMLCanvasElement) => void;
+  endDrawing: (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>, canvas: HTMLCanvasElement) => void;
 }
 
 interface DrawProviderProps {
@@ -224,16 +224,34 @@ export const DrawProvider = ({ children }: DrawProviderProps) => {
     setRedoHistory([]);
   }, [frames, selectedFrame, drawingHistory]);
 
-  const startDrawing = useCallback((e: React.MouseEvent<HTMLCanvasElement>, canvas: HTMLCanvasElement) => {
-    if (selectedFrame === null) return;
-    
-    setRedoHistory([]); 
-    
+  const getCoordinates = useCallback((e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>, canvas: HTMLCanvasElement) => {
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
-    const x = (e.clientX - rect.left) * scaleX;
-    const y = (e.clientY - rect.top) * scaleY;
+    
+    let clientX: number, clientY: number;
+    
+    if ('touches' in e) {
+      const touch = e.touches[0] || e.changedTouches[0];
+      clientX = touch?.clientX ?? 0;
+      clientY = touch?.clientY ?? 0;
+    } else {
+      clientX = e.clientX;
+      clientY = e.clientY;
+    }
+    
+    const x = (clientX - rect.left) * scaleX;
+    const y = (clientY - rect.top) * scaleY;
+
+    return { x, y };
+  }, []);
+
+  const startDrawing = useCallback((e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>, canvas: HTMLCanvasElement) => {
+    if (selectedFrame === null) return;
+    
+    setRedoHistory([]);
+    
+    const { x, y } = getCoordinates(e, canvas);
     
     setIsDrawing(true);
     setStartPoint({ x, y });
@@ -246,17 +264,13 @@ export const DrawProvider = ({ children }: DrawProviderProps) => {
         tool: currentTool
       }]);
     }
-  }, [selectedFrame, currentTool, currentColor, penSize]);
+  }, [selectedFrame, currentTool, currentColor, penSize, getCoordinates]);
 
-  const draw = useCallback((e: React.MouseEvent<HTMLCanvasElement>, canvas: HTMLCanvasElement) => {
+  const draw = useCallback((e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>, canvas: HTMLCanvasElement) => {
     if (!isDrawing || selectedFrame === null) return;
 
     const ctx = canvas.getContext('2d')!;
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    const x = (e.clientX - rect.left) * scaleX;
-    const y = (e.clientY - rect.top) * scaleY;
+    const { x, y } = getCoordinates(e, canvas);
 
     if (currentTool === DRAWING_TOOLS.PEN.id) {
       setCurrentPoints(prev => {
@@ -304,16 +318,12 @@ export const DrawProvider = ({ children }: DrawProviderProps) => {
       
       drawShape(ctx, currentTool, startPoint, { x, y });
     }
-  }, [isDrawing, selectedFrame, currentTool, currentColor, penSize, currentPoints, startPoint, drawShape]);
+  }, [isDrawing, selectedFrame, currentTool, currentColor, penSize, currentPoints, startPoint, drawShape, getCoordinates]);
 
-  const endDrawing = useCallback((e: React.MouseEvent<HTMLCanvasElement>, canvas: HTMLCanvasElement) => {
+  const endDrawing = useCallback((e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>, canvas: HTMLCanvasElement) => {
     if (!isDrawing || selectedFrame === null || !startPoint) return;
     
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    const x = (e.clientX - rect.left) * scaleX;
-    const y = (e.clientY - rect.top) * scaleY;
+    const { x, y } = getCoordinates(e, canvas);
 
     if (currentTool !== DRAWING_TOOLS.PEN.id) {
       const shapePoints = [
@@ -349,7 +359,7 @@ export const DrawProvider = ({ children }: DrawProviderProps) => {
 
     setIsDrawing(false);
     setStartPoint(null);
-  }, [isDrawing, selectedFrame, startPoint, currentTool, currentColor, penSize, currentPoints]);
+  }, [isDrawing, selectedFrame, startPoint, currentTool, currentColor, penSize, currentPoints, getCoordinates]);
 
   const value = {
     isDrawing,

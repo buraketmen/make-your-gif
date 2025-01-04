@@ -55,6 +55,8 @@ interface VideoContextType {
   setIsRecording: (value: boolean) => void;
   isMirrored: boolean;
   setIsMirrored: (value: boolean) => void;
+  isLandscape: boolean;
+  setIsLandscape: (value: boolean) => void;
   mode: Mode;
   setMode: (mode: Mode) => void;
 
@@ -73,11 +75,11 @@ interface VideoContextType {
 
   handleStartRecording: () => void;
   handleStopRecording: () => void;
-  handleVideoRecorded: (blob: Blob, videoDuration: number) => void;
-  handleFileSelected: (file: File) => void;
+  handleVideoRecorded: (blob: Blob, videoDuration: number) => Promise<void>;
+  handleFileSelected: (file: File) => Promise<void>;
   handleBack: () => void;
   handleCropVideo: () => Promise<void>;
-  handleResetCrop: () => void;
+  handleResetCrop: () => Promise<void>;
   handleDownloadGif: () => void;
   gifSize: number;
   setGifSize: (size: number) => void;
@@ -104,6 +106,7 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
   const [lastUpdatedAt, setLastUpdatedAt] = useState<number>(0);
   const [baseVideoBlob, setBaseVideoBlob] = useState<Blob | null>(null);
   const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
+  const [isLandscape, setIsLandscape] = useState(true);
   const [videoFilters, setVideoFilters] = useState({
     trim: {
       start: 0,
@@ -497,20 +500,24 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
     }
   };
 
-  const handleResetCrop = () => {
+  const handleResetCrop = async () => {
     if (videoBlob !== baseVideoBlob) {
-      setSelectedFrame(null);
-      setVideoBlob(baseVideoBlob);
-      setVideoFilters(prev => ({
-        ...prev,
-        crop: {
-          coordinates: { x: 20, y: 20, width: 60, height: 60 },
-          isActive: false,
-          isCropMode: false
-        }
-      }));
-      extractFramesForVideo(baseVideoBlob!);
-      setLastUpdatedAt(Date.now());
+      try {
+        setSelectedFrame(null);
+        setVideoBlob(baseVideoBlob);
+        setVideoFilters(prev => ({
+          ...prev,
+          crop: {
+            coordinates: { x: 20, y: 20, width: 60, height: 60 },
+            isActive: false,
+            isCropMode: false
+          }
+        }));
+        await extractFramesForVideo(baseVideoBlob!);
+        setLastUpdatedAt(Date.now());
+      } catch (error) {
+        console.error('Error resetting crop:', error);
+      }
     }
   };
 
@@ -571,6 +578,8 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
     setIsRecording,
     isMirrored,
     setIsMirrored,
+    isLandscape,
+    setIsLandscape,
     
     frames,
     setFrames,

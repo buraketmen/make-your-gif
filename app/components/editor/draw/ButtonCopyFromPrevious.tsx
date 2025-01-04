@@ -24,6 +24,7 @@ export function DrawCopyFromPreviousButton() {
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
+          type="button"
           onClick={copyFromPrevious}
           variant="ghost"
           size="sm"

@@ -20,6 +20,7 @@ export const CropControl = () => {
         {videoFilters.crop.isCropMode ? (
           <>
             <Button
+              type="button"
               onClick={() => setIsCropMode(false)}
               variant="ghost"
             >
@@ -27,6 +28,7 @@ export const CropControl = () => {
             </Button>
 
             <Button
+              type="button"
               onClick={handleCropVideo}
               disabled={processes.isCropping}
               className="gap-2"
@@ -38,6 +40,7 @@ export const CropControl = () => {
         ) : (
           <>
             <Button
+              type="button"
               onClick={() => setIsCropMode(true)}
               variant="ghost"
               className="gap-2"
@@ -48,6 +51,7 @@ export const CropControl = () => {
 
             {videoFilters.crop.isActive && (
               <Button
+                type="button"
                 onClick={handleResetCrop}
                 variant="outline"
                 className="text-rose-500 hover:text-rose-600 gap-2"

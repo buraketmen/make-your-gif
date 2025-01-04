@@ -9,6 +9,7 @@ export const VideoPreview = () => {
   const {
     videoBlob,
     videoFilters,
+    frames
   } = useVideo();
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -22,15 +23,22 @@ export const VideoPreview = () => {
   }, [videoBlob]);
 
   return (
-    <div className="aspect-video w-full max-h-[600px] rounded-lg overflow-hidden bg-gray-100 relative">
+    <div className="aspect-video w-full max-h-[600px] rounded-lg overflow-hidden bg-gray-100 relative flex items-center justify-center">
       <video
         ref={videoRef}
         controls={!videoFilters.crop.isCropMode}
-        className="w-full h-full object-contain shadow-[inset_0_0_5px_rgba(0,0,0,0.3),_0_0_5px_rgba(0,0,0,0.2)]"
+        className="w-full h-full object-contain"
+        playsInline
+        poster={frames[0]?.imageData}
+        style={{
+          maxHeight: '100%',
+          maxWidth: '100%'
+        }}
+        preload="metadata"
       />
       {videoFilters.crop.isCropMode && (
-        <div className="absolute inset-0">
-          <CropBox  />
+        <div className="absolute inset-0 flex items-center justify-center">
+          <CropBox />
         </div>
       )}
       <div className="absolute top-2 right-2 flex gap-2">

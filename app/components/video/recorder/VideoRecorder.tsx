@@ -180,7 +180,16 @@ const [videoConstraints, setVideoConstraints] = useState<MediaTrackConstraints |
 
       setTimeout(() => {
         if (mediaRecorderRef.current?.state === 'recording' && isRecording) {
-          stopRecording();
+          mediaRecorderRef.current.requestData();
+          mediaRecorderRef.current.stop();
+          handleStopRecording();
+          
+          mediaRecorderRef.current.onstop = () => {
+            const blob = new Blob(chunksRef.current, { 
+              type: mimeType
+            });
+            handleVideoRecorded(blob, MAX_RECORDING_DURATION);
+          };
         }
       }, MAX_RECORDING_DURATION * 1000);
     } catch (error) {
@@ -257,7 +266,7 @@ const [videoConstraints, setVideoConstraints] = useState<MediaTrackConstraints |
 
   if (isInitializing) {
     return <div className="h-full flex items-center justify-center min-h-[300px] md:min-h-[400px]">
-        <div className="flex flex-col items-center justify-center gap-4">
+        <div className="flex flex-col items-center justify-center gap-2">
             <Spinner size={12} />
             <SpinnerText text="Initializing camera..." />
         </div>

@@ -26,6 +26,7 @@ export function DrawClearButton() {
     <AlertDialog>
       <AlertDialogTrigger asChild>
         <Button
+          type="button"
           variant="outline"
           size="sm"
           className="text-rose-500 gap-2"

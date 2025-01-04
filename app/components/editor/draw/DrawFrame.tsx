@@ -35,8 +35,33 @@ export const DrawFrame = () => {
   useEffect(() => {
     if (selectedFrame !== null && canvasRef.current) {
       drawFrame(selectedFrame, canvasRef.current);
+      
+      // Add non-passive touch event listeners
+      const canvas = canvasRef.current;
+      const handleTouchStart = (e: TouchEvent) => {
+        e.preventDefault();
+        startDrawing(e as unknown as React.TouchEvent<HTMLCanvasElement>, canvas);
+      };
+      const handleTouchMove = (e: TouchEvent) => {
+        e.preventDefault();
+        draw(e as unknown as React.TouchEvent<HTMLCanvasElement>, canvas);
+      };
+      const handleTouchEnd = (e: TouchEvent) => {
+        e.preventDefault();
+        endDrawing(e as unknown as React.TouchEvent<HTMLCanvasElement>, canvas);
+      };
+
+      canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+      canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+      canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
+
+      return () => {
+        canvas.removeEventListener('touchstart', handleTouchStart);
+        canvas.removeEventListener('touchmove', handleTouchMove);
+        canvas.removeEventListener('touchend', handleTouchEnd);
+      };
     }
-  }, [selectedFrame, currentPoints, drawFrame]);
+  }, [selectedFrame, currentPoints, drawFrame, draw, startDrawing, endDrawing]);
 
   useEffect(() => {
     const drawFrame = document.getElementById('draw-frame');
@@ -55,6 +80,7 @@ export const DrawFrame = () => {
             <span>Frame {selectedFrame.id + 1}</span>
             <div className='flex gap-1 md:gap-2'>
               <Button
+                type="button"
                 onClick={undoLastDrawing}
                 variant="ghost"
                 size="sm"
@@ -63,6 +89,7 @@ export const DrawFrame = () => {
                 <Undo className="h-2 w-2 md:h-4 md:w-4" />
               </Button>
               <Button
+                type="button"
                 onClick={redoLastDrawing}
                 variant="ghost"
                 size="sm"
@@ -74,11 +101,12 @@ export const DrawFrame = () => {
             </div>
           </div>
           <div 
-            className="relative bg-black/5 rounded-lg overflow-hidden flex items-center justify-center max-h-[600px]"
+            className="relative bg-black/5 rounded-lg overflow-hidden flex items-center justify-center max-h-[320px] md:max-h-[600px] touch-none"
             style={{ 
               aspectRatio: selectedFrame ? `${selectedFrame.width}/${selectedFrame.height}` : '16/9',
               width: '100%',
-              maxHeight: 480
+              height: 'calc(100% - 32px)',
+              touchAction: 'none'
             }}
           >
             <canvas
@@ -104,6 +132,8 @@ export const DrawFrame = () => {
             Discard
           </Button>
           <Button
+
+            type="button"
             onClick={saveDrawing}
             variant="default"
             size="sm"

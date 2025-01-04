@@ -55,7 +55,7 @@ const Frame = forwardRef<HTMLDivElement, FrameProps>(({ frame, onFrameSelect }, 
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.8 }}
       transition={{ duration: 0.2 }}
-      className="relative cursor-pointer rounded-[4px]"
+      className="relative cursor-pointer rounded-[4px] overflow-hidden"
       onClick={() => onFrameSelect(frame)}
     >
       <canvas
@@ -87,14 +87,28 @@ const FrameGrid = () => {
   const { frames, processes: { isFrameExtracting }, selectedFrame, setSelectedFrame } = useVideo();
   const [showWarning, setShowWarning] = useState(false);
   const [pendingFrame, setPendingFrame] = useState<DrawingFrame | null>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
 
-  const handleTouchMove = (e: React.TouchEvent) => {
-    const target = e.target as HTMLElement;
-    const isAtBottom = target.scrollHeight - target.scrollTop === target.clientHeight;
-    if (isAtBottom) {
-      e.preventDefault();
-    }
-  };
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+
+    const handleTouchMove = (e: TouchEvent) => {
+      const target = e.target as HTMLElement;
+      const container = target.closest('.overflow-y-auto');
+      if (!container) return;
+
+      const isAtBottom = Math.abs(container.scrollHeight - container.scrollTop - container.clientHeight) < 1;
+      if (isAtBottom) {
+        e.preventDefault();
+      }
+    };
+
+    grid.addEventListener('touchmove', handleTouchMove, { passive: false });
+    return () => {
+      grid.removeEventListener('touchmove', handleTouchMove);
+    };
+  }, []);
 
   const handleFrameSelect = (frame: DrawingFrame) => {
     if (frame.id === selectedFrame?.id) return;
@@ -124,10 +138,8 @@ const FrameGrid = () => {
   };
 
   const frameGridClass = selectedFrame 
-    ? 'max-h-[280px] grid grid-cols-1 lg:grid-cols-4 xl:grid-cols-6 gap-4 overflow-y-auto xl:max-h-[440px]' 
-    : 'max-h-[320px] grid grid-cols-4 lg:grid-cols-8 xl:grid-cols-12 gap-4 overflow-y-auto';
-
-
+    ? 'max-h-[320px] grid grid-rows-1 h-max-[120px] md:h-max-auto md:grid-rows-none auto-cols-[120px] md:auto-cols-none grid-flow-col md:grid-flow-dense md:grid-cols-1 lg:grid-cols-4 xl:grid-cols-6 gap-2 md:gap-4 overflow-x-auto md:overflow-y-auto xl:max-h-[440px]' 
+    : 'max-h-[320px] grid grid-rows-1 md:grid-rows-none auto-cols-[120px] md:auto-cols-none grid-flow-col md:grid-flow-dense md:grid-cols-4 lg:grid-cols-8 xl:grid-cols-12 gap-2 md:gap-4 overflow-x-auto md:overflow-y-auto';
 
   if (isFrameExtracting) {
     return <FrameSpinner />
@@ -154,9 +166,9 @@ const FrameGrid = () => {
       </AlertDialog>
 
       <motion.div 
+        ref={gridRef}
         layout
         className={frameGridClass}
-        onTouchMove={handleTouchMove}
         transition={{ 
           layout: { duration: 0.2 },
           type: "spring",
