@@ -22,7 +22,7 @@ export const VideoRecorder = ({ device }: { device: string }) => {
     } = useVideo();
 const [videoConstraints, setVideoConstraints] = useState<MediaTrackConstraints | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
-  const [stream, setStream] = useState<MediaStream | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const [permissionError, setPermissionError] = useState<string | null>(null);
   const [isControlsVisible, setIsControlsVisible] = useState(true);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -51,7 +51,7 @@ const [videoConstraints, setVideoConstraints] = useState<MediaTrackConstraints |
         throw new Error('No video tracks available');
       }
 
-      setStream(mediaStream);
+      streamRef.current = mediaStream;
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
         await new Promise<void>((resolve) => {
@@ -94,8 +94,8 @@ const [videoConstraints, setVideoConstraints] = useState<MediaTrackConstraints |
             if (videoRef.current) {
                 videoRef.current.srcObject = null;
             }
-            if (stream) {
-                stream.getTracks().forEach(track => {
+            if (streamRef.current) {
+                streamRef.current.getTracks().forEach(track => {
                     track.stop();
                 })
             }
@@ -104,7 +104,7 @@ const [videoConstraints, setVideoConstraints] = useState<MediaTrackConstraints |
   }, [device, isLandscape]);
 
   useEffect(() => {
-    if (isRecording && stream) {
+    if (isRecording && streamRef.current) {
       startRecording();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -128,10 +128,10 @@ const [videoConstraints, setVideoConstraints] = useState<MediaTrackConstraints |
   }, [handleStopRecording, handleVideoRecorded, recordingTime, mimeType]);
 
   const startRecording = useCallback(() => {
-    if (!stream || !videoRef.current) return;
+    if (!streamRef.current || !videoRef.current) return;
 
     try {
-      let recordingStream = stream;
+      let recordingStream = streamRef.current;
 
       if (isMirrored) {
         const canvas = document.createElement('canvas');
@@ -144,7 +144,7 @@ const [videoConstraints, setVideoConstraints] = useState<MediaTrackConstraints |
         ctx.translate(-canvas.width, 0);
 
         const canvasStream = canvas.captureStream();
-        const audioTrack = stream.getAudioTracks()[0];
+        const audioTrack = streamRef.current.getAudioTracks()[0];
         if (audioTrack) {
           canvasStream.addTrack(audioTrack);
         }
@@ -180,7 +180,16 @@ const [videoConstraints, setVideoConstraints] = useState<MediaTrackConstraints |
 
       setTimeout(() => {
         if (mediaRecorderRef.current?.state === 'recording' && isRecording) {
-          stopRecording();
+          mediaRecorderRef.current.requestData();
+          mediaRecorderRef.current.stop();
+          handleStopRecording();
+          
+          mediaRecorderRef.current.onstop = () => {
+            const blob = new Blob(chunksRef.current, { 
+              type: mimeType
+            });
+            handleVideoRecorded(blob, MAX_RECORDING_DURATION);
+          };
         }
       }, MAX_RECORDING_DURATION * 1000);
     } catch (error) {
@@ -188,7 +197,7 @@ const [videoConstraints, setVideoConstraints] = useState<MediaTrackConstraints |
       setPermissionError('This browser or device might not support video recording. Please try using a different browser (like Chrome) or device.');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stream, handleStopRecording, isRecording, stopRecording, isMirrored]);
+  }, [streamRef.current, handleStopRecording, isRecording, stopRecording, isMirrored]);
 
   const handleMouseMove = useCallback(() => {
     setIsControlsVisible(true);
@@ -204,15 +213,15 @@ const [videoConstraints, setVideoConstraints] = useState<MediaTrackConstraints |
 
   useEffect(() => {
     const video = videoRef.current;
-    if (video && stream) {
-        video.srcObject = stream;
+    if (video && streamRef.current) {
+        video.srcObject = streamRef.current;
     }
     return () => {
         if (video) {
             video.srcObject = null;
         }
     };
-  }, [stream]);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -223,8 +232,8 @@ const [videoConstraints, setVideoConstraints] = useState<MediaTrackConstraints |
         clearInterval(recordingTimerRef.current);
       }
       
-      if (stream) {
-        stream.getTracks().forEach(track => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => {
           track.stop();
         })
       }
