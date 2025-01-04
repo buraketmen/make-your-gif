@@ -348,14 +348,11 @@ interface VideoConstraints {
   facingMode?: MediaTrackConstraints['facingMode'];
 }
 
-export const getOptimalVideoConstraints = async (deviceId?: string, isLandscape: boolean = true): Promise<VideoConstraints> => {
+export const getOptimalVideoConstraints = async (deviceId?: string): Promise<VideoConstraints> => {
   const defaultConstraints: VideoConstraints = {
     width: { min: 480, ideal: 1280, max: 1920 },
     height: { min: 480, ideal: 720, max: 1080 }
   };
-
-  // Mobil cihaz kontrolü
-  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
   if (deviceId) {
     defaultConstraints.deviceId = { exact: deviceId };
@@ -368,24 +365,10 @@ export const getOptimalVideoConstraints = async (deviceId?: string, isLandscape:
     if (device) {
       const videoConstraints: MediaTrackConstraints = {
         deviceId: device.deviceId,
+        width: { min: 480, ideal: 1280, max: 1920 },
+        height: { min: 480, ideal: 720, max: 1080 },
         facingMode: 'environment'
       };
-
-      if (isMobile) {
-        // Mobilde yatay/dikey mod için en-boy oranını ayarla
-        videoConstraints.aspectRatio = { ideal: isLandscape ? 16/9 : 9/16 };
-        
-        if (isLandscape) {
-          videoConstraints.width = { min: 480, ideal: 1280, max: 1920 };
-          videoConstraints.height = { min: 480, ideal: 720, max: 1080 };
-        } else {
-          videoConstraints.width = { min: 480, ideal: 720, max: 1080 };
-          videoConstraints.height = { min: 480, ideal: 1280, max: 1920 };
-        }
-      } else {
-        videoConstraints.width = { min: 480, ideal: 1280, max: 1920 };
-        videoConstraints.height = { min: 480, ideal: 720, max: 1080 };
-      }
 
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: videoConstraints
@@ -395,30 +378,20 @@ export const getOptimalVideoConstraints = async (deviceId?: string, isLandscape:
       const capabilities = track.getCapabilities();
       const settings = track.getSettings();
 
-      // Kamera ayarlarını kontrol et
-      if (isMobile && capabilities.aspectRatio) {
-        try {
-          const orientationConstraints: MediaTrackConstraints = {
-            aspectRatio: { ideal: isLandscape ? 16/9 : 9/16 },
-            width: isLandscape 
-              ? { min: 480, ideal: settings.width || 1280, max: 1920 }
-              : { min: 480, ideal: settings.height || 720, max: 1080 },
-            height: isLandscape
-              ? { min: 480, ideal: settings.height || 720, max: 1080 }
-              : { min: 480, ideal: settings.width || 1280, max: 1920 }
-          };
-          await track.applyConstraints(orientationConstraints);
-        } catch (error) {
-          console.warn('Camera orientation change not supported:', error);
-        }
-      }
-
       stream.getTracks().forEach(track => track.stop());
 
       if (capabilities) {
         const constraints: VideoConstraints = {
-          width: { min: 480, ideal: 1280, max: 1920 },
-          height: { min: 480, ideal: 720, max: 1080 },
+          width: { 
+            min: Math.min(capabilities.width?.min || 480, settings.width || 480),
+            ideal: settings.width || 1280,
+            max: capabilities.width?.max || 1920
+          },
+          height: { 
+            min: Math.min(capabilities.height?.min || 480, settings.height || 480),
+            ideal: settings.height || 720,
+            max: capabilities.height?.max || 1080
+          },
           facingMode: 'environment'
         };
 
@@ -426,81 +399,24 @@ export const getOptimalVideoConstraints = async (deviceId?: string, isLandscape:
           constraints.deviceId = { exact: deviceId };
         }
 
-        if (isMobile) {
-          constraints.aspectRatio = { ideal: isLandscape ? 16/9 : 9/16 };
-          
-          if (isLandscape) {
-            constraints.width = { 
-              min: Math.min(capabilities.width?.min || 480, settings.width || 480),
-              ideal: settings.width || 1280,
-              max: capabilities.width?.max || 1920
-            };
-            constraints.height = { 
-              min: Math.min(capabilities.height?.min || 480, settings.height || 480),
-              ideal: settings.height || 720,
-              max: capabilities.height?.max || 1080
-            };
-          } else {
-            constraints.width = { 
-              min: Math.min(capabilities.width?.min || 480, settings.width || 480),
-              ideal: settings.height || 720,
-              max: capabilities.width?.max || 1080
-            };
-            constraints.height = { 
-              min: Math.min(capabilities.height?.min || 480, settings.height || 480),
-              ideal: settings.width || 1280,
-              max: capabilities.height?.max || 1920
-            };
-          }
-        }
-
         return constraints;
       }
     }
 
-    // Varsayılan ayarları kullan
-    const defaultResponse: VideoConstraints = {
+    return {
       width: { min: 480, ideal: 1280, max: 1920 },
       height: { min: 480, ideal: 720, max: 1080 },
       facingMode: 'environment',
       ...(deviceId && { deviceId: { exact: deviceId } })
     };
-
-    if (isMobile) {
-      defaultResponse.aspectRatio = { ideal: isLandscape ? 16/9 : 9/16 };
-      
-      if (isLandscape) {
-        defaultResponse.width = { min: 480, ideal: 1280, max: 1920 };
-        defaultResponse.height = { min: 480, ideal: 720, max: 1080 };
-      } else {
-        defaultResponse.width = { min: 480, ideal: 720, max: 1080 };
-        defaultResponse.height = { min: 480, ideal: 1280, max: 1920 };
-      }
-    }
-
-    return defaultResponse;
 
   } catch (error) {
     console.warn('Error getting optimal video constraints:', error);
-    const fallbackResponse: VideoConstraints = {
+    return {
       width: { min: 480, ideal: 1280, max: 1920 },
       height: { min: 480, ideal: 720, max: 1080 },
       facingMode: 'environment',
       ...(deviceId && { deviceId: { exact: deviceId } })
     };
-
-    if (isMobile) {
-      fallbackResponse.aspectRatio = { ideal: isLandscape ? 16/9 : 9/16 };
-      
-      if (isLandscape) {
-        fallbackResponse.width = { min: 480, ideal: 1280, max: 1920 };
-        fallbackResponse.height = { min: 480, ideal: 720, max: 1080 };
-      } else {
-        fallbackResponse.width = { min: 480, ideal: 720, max: 1080 };
-        fallbackResponse.height = { min: 480, ideal: 1280, max: 1920 };
-      }
-    }
-
-    return fallbackResponse;
   }
 }; 

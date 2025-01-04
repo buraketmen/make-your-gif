@@ -8,7 +8,7 @@ import { CameraError } from './CameraError';
 import { RecordingIndicator } from './RecordingIndicator';
 import { MAX_RECORDING_DURATION, useVideo } from '@/context/video-context';
 import {Spinner, SpinnerText} from '@/components/Spinner';
-import { getMediaDevices, getOptimalVideoConstraints, isMobile } from '@/lib/utils';
+import { getMediaDevices, getOptimalVideoConstraints } from '@/lib/utils';
 
 export const VideoRecorder = ({ device }: { device: string }) => {
     const {
@@ -18,7 +18,6 @@ export const VideoRecorder = ({ device }: { device: string }) => {
         handleStartRecording,
         handleStopRecording,
         handleVideoRecorded,
-        isLandscape,
     } = useVideo();
 const [videoConstraints, setVideoConstraints] = useState<MediaTrackConstraints | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
@@ -32,44 +31,6 @@ const [videoConstraints, setVideoConstraints] = useState<MediaTrackConstraints |
   const [recordingTime, setRecordingTime] = useState(0);
   const recordingTimerRef = useRef<NodeJS.Timeout>();
 
-  // Ekran oryantasyonunu kontrol et
-  useEffect(() => {
-    
-    
-    const setOrientation = async () => {
-      if (!isMobile) return;
-
-      try {
-        const screenOrientation = screen.orientation as ScreenOrientation & {
-          lock: (orientation: 'portrait' | 'landscape') => Promise<void>;
-          unlock: () => void;
-        };
-        if (screenOrientation?.lock) {
-          await screenOrientation.lock(isLandscape ? 'landscape' : 'portrait');
-        }
-      } catch (error) {
-        console.warn('Screen orientation lock not supported:', error);
-      }
-    };
-
-    setOrientation();
-
-    return () => {
-      if (!isMobile) return;
-
-      try {
-        const screenOrientation = screen.orientation as ScreenOrientation & {
-          lock: (orientation: 'portrait' | 'landscape') => Promise<void>;
-          unlock: () => void;
-        };
-        if (screenOrientation?.unlock) {
-          screenOrientation.unlock();
-        }
-      } catch (error) {
-        console.warn('Screen orientation unlock failed:', error);
-      }
-    };
-  }, [isLandscape]);
 
   const initializeCamera = useCallback(async () => {
     try {
