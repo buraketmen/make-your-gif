@@ -27,7 +27,6 @@ export default function Home() {
   const { processes: { isConverting }, videoBlob } = useVideo();
 
   return (
-    <main className="min-h-screen ">
       <div className="container mx-auto p-2 md:p-4 xl:px-0">
         {!videoBlob && (
           <div className="text-center pb-4">
@@ -48,6 +47,5 @@ export default function Home() {
             </AnimatePresence>
         </TooltipProvider>
       </div>
-    </main>
   );
 }

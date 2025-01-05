@@ -7,9 +7,6 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-
-
 interface LegacyNavigator extends Navigator {
   webkitGetUserMedia?: (
     constraints: MediaStreamConstraints,

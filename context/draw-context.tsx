@@ -54,7 +54,7 @@ export const DrawProvider = ({ children }: DrawProviderProps) => {
   const [currentPoints, setCurrentPoints] = useState<Drawing[]>([]);
   const [drawingHistory, setDrawingHistory] = useState<Drawing[][]>([]);
   const [redoHistory, setRedoHistory] = useState<Drawing[][]>([]);
-  const [penSize, setPenSize] = useState<PenSize>(2);
+  const [penSize, setPenSize] = useState<PenSize>(4);
   const [currentTool, setCurrentTool] = useState<DrawingTool>('pen');
   const [startPoint, setStartPoint] = useState<{ x: number, y: number } | null>(null);
 

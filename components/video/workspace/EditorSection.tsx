@@ -9,7 +9,7 @@ export const EditorSection = () => {
 
   return (
     <div className="h-full">
-      <div className="mb-6 flex justify-between items-center">
+      <div className="mb-4 flex justify-between items-center">
         <h2 className="text-2xl font-semibold text-gray-900">Editor</h2>
         <Button
                 type="button"

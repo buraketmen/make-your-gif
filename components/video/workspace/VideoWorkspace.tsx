@@ -30,7 +30,7 @@ export function VideoWorkspace() {
         className="col-span-2 lg:col-span-1 min-h-[400px] w-full order-1 lg:order-2"
       >
         <Card className="p-2 md:p-6 shadow-lg border-0 h-full">
-          <div className="mb-6 flex justify-between items-center">
+          <div className="mb-4 flex justify-between items-center">
             <h2 className="text-2xl font-semibold text-gray-900 h-[32px]">Preview</h2>
           </div>
 

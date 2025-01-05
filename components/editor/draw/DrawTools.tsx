@@ -46,7 +46,7 @@ export const DrawTools = () => {
         <Slider
           value={[penSize]}
           onValueChange={(value) => setPenSize(value[0])}
-          min={2}
+          min={4}
           max={32}
           step={1}
           className="w-full"

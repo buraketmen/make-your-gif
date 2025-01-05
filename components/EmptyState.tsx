@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { Camera, Upload, Wand2 } from 'lucide-react';
-import { Card, CardContent } from "./ui/card";
+import { Card } from "./ui/card";
 
 const iconVariants = {
   initial: { scale: 0.8, opacity: 0 },
@@ -10,8 +10,7 @@ const iconVariants = {
 
 export const EmptyState = () => {
   return (
-    <Card className="border-2 border-dashed">
-      <CardContent className="p-2 md:p-6">
+    <Card className="p-2 md:p-6 border-2 border-dashed">
         <div className="flex flex-col items-center justify-center space-y-4">
           <motion.div
             className="relative w-24 h-24"
@@ -19,7 +18,6 @@ export const EmptyState = () => {
             animate="animate"
             whileHover="hover"
           >
-            {/* Animated circle background */}
             <motion.div
               className="absolute inset-0 bg-rose-50 rounded-full"
               initial={{ scale: 0 }}
@@ -34,7 +32,6 @@ export const EmptyState = () => {
               }}
             />
             
-            {/* Icons */}
             <motion.div
               className="absolute inset-0 flex items-center justify-center"
               variants={iconVariants}
@@ -74,7 +71,6 @@ export const EmptyState = () => {
             </p>
           </motion.div>
         </div>
-      </CardContent>
     </Card>
   );
 }; 
