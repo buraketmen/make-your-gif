@@ -5,11 +5,13 @@ import { useVideo } from '@/context/video-context';
 import { CropBox } from '@/components/editor/crop/CropBox';
 import { Crop, Scissors } from 'lucide-react';
 
-export const VideoPreview = () => {
+const Video = () => {
   const {
     videoBlob,
-    videoFilters,
-    frames
+    videoFilters: {
+      crop: { isCropMode },
+    },
+    frames,
   } = useVideo();
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -23,19 +25,26 @@ export const VideoPreview = () => {
   }, [videoBlob]);
 
   return (
+    <video
+      ref={videoRef}
+      controls={!isCropMode}
+      className="w-full h-full object-contain"
+      playsInline
+      poster={frames[0]?.imageData}
+      style={{
+        maxHeight: 480,
+        maxWidth: '100%',
+      }}
+      preload="metadata"
+    />
+  );
+};
+
+export const VideoPreview = () => {
+  const { videoFilters } = useVideo();
+  return (
     <div className="w-full max-h-[600px] rounded-lg overflow-hidden bg-gray-100 relative flex items-center justify-center">
-      <video
-        ref={videoRef}
-        controls={!videoFilters.crop.isCropMode}
-        className="w-full h-full object-contain"
-        playsInline
-        poster={frames[0]?.imageData}
-        style={{
-          maxHeight: 480,
-          maxWidth: '100%'
-        }}
-        preload="metadata"
-      />
+      <Video />
       {videoFilters.crop.isCropMode && (
         <div className="absolute inset-0 flex items-center justify-center">
           <CropBox />
@@ -57,4 +66,4 @@ export const VideoPreview = () => {
       </div>
     </div>
   );
-}; 
+};

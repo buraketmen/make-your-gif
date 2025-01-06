@@ -11,15 +11,18 @@ import {
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { DrawingFrame, Mode } from '@/types/draw';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
+import debounce from 'lodash/debounce';
 import {
-  drawFrameToCanvas,
-  extractFramesFromVideo,
-  calculateCropDimensions,
   getSupportedMimeType,
   getVideoOutputFormat,
   getFFmpegCodecArgs,
   getCameras,
 } from '@/lib/utils';
+import {
+  drawFrameToCanvas,
+  calculateCropDimensions,
+  extractFramesFromVideo,
+} from '@/lib/video-frames';
 
 export const TARGET_FPS = 30;
 export const MAX_RECORDING_DURATION = 10;
@@ -282,15 +285,19 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
     }
   }, [videoBlob, frames, videoFilters, loadFFmpeg, handleGifUrlChange, gifSize]);
 
+  const debouncedGenerateGif = useCallback(
+    debounce(() => {
+      if (videoBlob && frames.length > 0) {
+        generateGif();
+      }
+    }, 1000),
+    [videoBlob, frames]
+  );
+
   useEffect(() => {
     if (!videoBlob || frames.length === 0) return;
-
-    const timeoutId = setTimeout(() => {
-      generateGif();
-    }, 500);
-
-    return () => clearTimeout(timeoutId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    debouncedGenerateGif();
+    return () => debouncedGenerateGif.cancel();
   }, [videoBlob, frames, lastUpdatedAt, gifSize]);
 
   useEffect(() => {
@@ -340,7 +347,6 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
         if (timeMatch && video) {
           const [hours, minutes, seconds] = timeMatch[1].split(':').map(Number);
           const currentTime = hours * 3600 + minutes * 60 + seconds;
-          console.log('currentTime', currentTime, 'video duration', videoDuration);
           const progress = (currentTime / videoDuration) * 100;
           setVideoProgress(Math.min(Math.round(isNaN(progress) ? 0 : progress), 100));
         }
@@ -539,11 +545,6 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
     });
     handleGifUrlChange(null);
     setLastUpdatedAt(Date.now());
-    // Clean up worker when resetting
-    if (typeof window !== 'undefined') {
-      const { cleanupWorker } = require('@/lib/video-frames');
-      cleanupWorker();
-    }
   };
 
   const handleCropVideo = async () => {
@@ -614,7 +615,7 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
         await extractFramesForVideo(croppedBlob);
       } catch (error) {
         console.error('Error during FFmpeg operations:', error);
-        throw error;
+        return;
       }
     } catch (error) {
       console.error('Error cropping video:', error);
@@ -738,16 +739,6 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
     setGifSize,
     videoProgress,
   };
-
-  // Add cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (typeof window !== 'undefined') {
-        const { cleanupWorker } = require('@/lib/video-frames');
-        cleanupWorker();
-      }
-    };
-  }, []);
 
   return <VideoContext.Provider value={value}>{children}</VideoContext.Provider>;
 };

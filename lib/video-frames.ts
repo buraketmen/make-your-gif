@@ -1,4 +1,4 @@
-import { DrawingFrame } from '@/types/draw';
+import { DRAWING_TOOLS, DrawingFrame, DrawingTool } from '@/types/draw';
 
 interface VideoFrameOptions {
   video: HTMLVideoElement;
@@ -19,81 +19,312 @@ interface VideoFrameResult {
   image: string;
 }
 
-const defaultOptions = {
-  format: 'image/jpeg',
-  offsets: [],
-  startTime: 0,
-  count: 1,
-  quality: 1.0,
+interface CropDimensions {
+  pixels: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+  ffmpegFilter: string;
+  relativeFilter: string;
+}
+
+export const calculateCropDimensions = (
+  coordinates: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  },
+  videoWidth: number,
+  videoHeight: number
+): CropDimensions => {
+  const cropX = Math.round((coordinates.x / 100) * videoWidth);
+  const cropY = Math.round((coordinates.y / 100) * videoHeight);
+  const cropWidth = Math.round((coordinates.width / 100) * videoWidth);
+  const cropHeight = Math.round((coordinates.height / 100) * videoHeight);
+
+  return {
+    pixels: {
+      x: cropX,
+      y: cropY,
+      width: cropWidth,
+      height: cropHeight,
+    },
+    ffmpegFilter: `crop=${cropWidth}:${cropHeight}:${cropX}:${cropY}`,
+    relativeFilter: `crop=iw*${coordinates.width / 100}:ih*${coordinates.height / 100}:iw*${coordinates.x / 100}:ih*${coordinates.y / 100}`,
+  };
 };
 
-let frameWorker: Worker | null = null;
+export const drawPath = (
+  ctx: CanvasRenderingContext2D,
+  points: { x: number; y: number }[],
+  color: string,
+  penSize: number,
+  tool: DrawingTool = DRAWING_TOOLS.PEN.id
+) => {
+  if (!points || points.length < 2) return;
 
-export const cleanupWorker = () => {
-  try {
-    if (frameWorker) {
-      frameWorker.terminate();
-      frameWorker = null;
-    }
-  } catch (error) {
-    console.error('Error during garbage collection:', error);
-  }
-};
+  ctx.beginPath();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = penSize;
 
-const getFrameWorker = () => {
-  if (!frameWorker) {
-    frameWorker = new Worker(new URL('./frame-worker.ts', import.meta.url));
-  }
-  return frameWorker;
-};
+  switch (tool) {
+    case DRAWING_TOOLS.PEN.id:
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.moveTo(points[0].x, points[0].y);
 
-const processFrameInWorker = async (
-  sourceCanvas: OffscreenCanvas,
-  frameData: { width: number; height: number; format: string; quality: number }
-): Promise<string> => {
-  const worker = getFrameWorker();
-
-  const transferCanvas = new OffscreenCanvas(frameData.width, frameData.height);
-  const transferCtx = transferCanvas.getContext('2d')!;
-  const bitmap = await createImageBitmap(sourceCanvas);
-  transferCtx.drawImage(bitmap, 0, 0);
-  bitmap.close();
-
-  const imageData = transferCtx.getImageData(0, 0, frameData.width, frameData.height);
-
-  return new Promise((resolve, reject) => {
-    const onMessage = (e: MessageEvent) => {
-      if (e.data.type === 'frame-processed') {
-        const blob = new Blob([e.data.buffer], { type: e.data.format });
-        resolve(URL.createObjectURL(blob));
-        worker.removeEventListener('message', onMessage);
-      } else if (e.data.type === 'error') {
-        reject(new Error(e.data.error));
-        worker.removeEventListener('message', onMessage);
+      for (let i = 1; i < points.length; i++) {
+        ctx.lineTo(points[i].x, points[i].y);
       }
+      break;
+    case DRAWING_TOOLS.LINE.id:
+      ctx.moveTo(points[0].x, points[0].y);
+      ctx.lineTo(points[1].x, points[1].y);
+      break;
+    case DRAWING_TOOLS.RECTANGLE.id:
+      ctx.rect(points[0].x, points[0].y, points[1].x - points[0].x, points[1].y - points[0].y);
+      break;
+    case DRAWING_TOOLS.CIRCLE.id:
+      ctx.arc(
+        points[0].x,
+        points[0].y,
+        Math.sqrt(Math.pow(points[1].x - points[0].x, 2) + Math.pow(points[1].y - points[0].y, 2)),
+        0,
+        2 * Math.PI
+      );
+      break;
+    default:
+      break;
+  }
+  ctx.stroke();
+};
+
+export const drawFrameToCanvas = (frame: DrawingFrame, canvas: HTMLCanvasElement) => {
+  const ctx = canvas.getContext('2d', {
+    alpha: false,
+    desynchronized: true,
+    willReadFrequently: false,
+  })!;
+
+  const img = new Image();
+  img.decoding = 'async';
+
+  return new Promise<void>((resolve, reject) => {
+    img.onload = () => {
+      const width = frame.width || img.naturalWidth;
+      const height = frame.height || img.naturalHeight;
+
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+      }
+
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.globalCompositeOperation = 'copy';
+      ctx.drawImage(img, 0, 0, width, height);
+      ctx.globalCompositeOperation = 'source-over';
+
+      if (frame.drawings.length > 0) {
+        const hasComplexDrawings = frame.drawings.some(
+          (d) => d.tool !== DRAWING_TOOLS.PEN.id && d.points.length === 2
+        );
+
+        if (hasComplexDrawings) {
+          frame.drawings.forEach((drawing) => {
+            ctx.beginPath();
+            ctx.strokeStyle = drawing.color;
+            ctx.lineWidth = drawing.penSize;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            if (drawing.tool === DRAWING_TOOLS.PEN.id) {
+              if (drawing.points.length >= 2) {
+                ctx.moveTo(drawing.points[0].x, drawing.points[0].y);
+                for (let i = 1; i < drawing.points.length; i++) {
+                  ctx.lineTo(drawing.points[i].x, drawing.points[i].y);
+                }
+              }
+            } else if (drawing.points.length === 2) {
+              const [start, end] = drawing.points;
+              switch (drawing.tool) {
+                case DRAWING_TOOLS.LINE.id:
+                  ctx.moveTo(start.x, start.y);
+                  ctx.lineTo(end.x, end.y);
+                  break;
+                case DRAWING_TOOLS.RECTANGLE.id:
+                  ctx.rect(start.x, start.y, end.x - start.x, end.y - start.y);
+                  break;
+                case DRAWING_TOOLS.CIRCLE.id:
+                  const radius = Math.hypot(end.x - start.x, end.y - start.y);
+                  ctx.arc(start.x, start.y, radius, 0, 2 * Math.PI);
+                  break;
+              }
+            }
+            ctx.stroke();
+          });
+        } else {
+          ctx.beginPath();
+          let currentColor = '';
+          let currentSize = 0;
+
+          frame.drawings.forEach((drawing) => {
+            if (drawing.color !== currentColor || drawing.penSize !== currentSize) {
+              if (currentColor) ctx.stroke();
+              ctx.beginPath();
+              ctx.strokeStyle = drawing.color;
+              ctx.lineWidth = drawing.penSize;
+              currentColor = drawing.color;
+              currentSize = drawing.penSize;
+            }
+
+            if (drawing.points.length >= 2) {
+              ctx.moveTo(drawing.points[0].x, drawing.points[0].y);
+              for (let i = 1; i < drawing.points.length; i++) {
+                ctx.lineTo(drawing.points[i].x, drawing.points[i].y);
+              }
+            }
+          });
+          if (currentColor) ctx.stroke();
+        }
+      }
+
+      resolve();
     };
 
-    worker.addEventListener('message', onMessage);
-    worker.postMessage(
-      {
-        type: 'process-frame',
-        imageData: imageData,
-        frameData,
-      },
-      [imageData.data.buffer]
-    );
+    img.onerror = () => {
+      reject(new Error('Failed to load frame image'));
+    };
+
+    img.src = frame.imageData;
   });
+};
+
+export const extractFramesFromVideo = (
+  video: HTMLVideoElement,
+  fps: number = 30,
+  startTime?: number,
+  endTime?: number,
+  onProgress?: (current: number, total: number) => void
+): Promise<DrawingFrame[]> => {
+  let canvas: HTMLCanvasElement | null = null;
+  return new Promise(async (resolve, reject) => {
+    try {
+      const effectiveStart = startTime ?? 0;
+      const effectiveEnd = endTime ?? video.duration;
+
+      canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d', {
+        alpha: false,
+        desynchronized: true,
+        willReadFrequently: false,
+      })!;
+      if (!ctx) {
+        console.error('Failed to create canvas context');
+        return;
+      }
+
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+
+      const frameCount = Math.floor((effectiveEnd - effectiveStart) * fps);
+      const videoFrames = await extractVideoFrames({
+        video,
+        format: 'image/jpeg',
+        quality: 1.0,
+        startTime: effectiveStart,
+        endTime: effectiveEnd,
+        count: frameCount,
+        onProgress,
+      });
+
+      const drawingFrames = convertToDrawingFrames(videoFrames);
+
+      if (drawingFrames.length > 0) {
+        const img = new Image();
+        img.decoding = 'async';
+
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => {
+            const width = img.width;
+            const height = img.height;
+            drawingFrames.forEach((frame) => {
+              frame.width = width;
+              frame.height = height;
+            });
+            img.src = '';
+            resolve();
+          };
+          img.onerror = () => reject(null);
+          img.src = drawingFrames[0].imageData;
+        });
+      }
+
+      resolve(drawingFrames);
+    } catch (error) {
+      console.error('Error during frame extraction:', error);
+      reject(error);
+    } finally {
+      if (canvas) {
+        canvas.width = 0;
+        canvas.height = 0;
+        canvas = null;
+      }
+      if (window.gc) {
+        try {
+          window.gc();
+        } catch (error) {
+          console.error('Error during garbage collection:', error);
+        }
+      }
+    }
+  });
+};
+
+const processFrame = async (
+  sourceCanvas: HTMLCanvasElement,
+  frameData: { width: number; height: number; format: string; quality: number }
+): Promise<string> => {
+  try {
+    return new Promise((resolve) => {
+      sourceCanvas.toBlob(
+        (blob) => {
+          if (blob) {
+            resolve(URL.createObjectURL(blob));
+          }
+        },
+        frameData.format,
+        frameData.quality
+      );
+    });
+  } catch (error) {
+    console.error('Error processing frame:', error);
+    return '';
+  }
 };
 
 export const extractVideoFrames = async (
   options: VideoFrameOptions
 ): Promise<VideoFrameResult[]> => {
-  try {
-    const settings = { ...defaultOptions, ...options };
-    const { video } = settings;
+  const defaultOptions = {
+    format: 'image/jpeg',
+    offsets: [],
+    startTime: 0,
+    count: 1,
+    quality: 1.0,
+  };
+  const settings = { ...defaultOptions, ...options };
+  const { video } = settings;
+  const frames: VideoFrameResult[] = [];
+  let canvas: HTMLCanvasElement | null = null;
+  let ctx: CanvasRenderingContext2D | null = null;
 
+  try {
     if (!video.videoWidth || !video.videoHeight) {
-      throw new Error('Video dimensions not available');
+      return [];
     }
 
     while ((video.duration === Infinity || isNaN(video.duration)) && video.readyState < 2) {
@@ -133,6 +364,18 @@ export const extractVideoFrames = async (
       settings.onLoad();
     }
 
+    canvas = document.createElement('canvas');
+    canvas.width = settings.width!;
+    canvas.height = settings.height!;
+    ctx = canvas.getContext('2d')!;
+
+    const frameData = {
+      width: settings.width!,
+      height: settings.height!,
+      format: settings.format,
+      quality: settings.quality,
+    };
+
     const tasks = Array.from({ length: settings.count }, (_, i) => {
       const targetTime = useOffsets
         ? settings.offsets![i]
@@ -143,8 +386,6 @@ export const extractVideoFrames = async (
     });
 
     const batchSize = 4;
-    const frames: VideoFrameResult[] = new Array(settings.count);
-
     for (let i = 0; i < tasks.length; i += batchSize) {
       const batch = tasks.slice(i, i + batchSize);
       await Promise.all(
@@ -158,39 +399,32 @@ export const extractVideoFrames = async (
             video.addEventListener('seeked', onSeeked);
           });
 
-          const canvas = new OffscreenCanvas(settings.width!, settings.height!);
-          const ctx = canvas.getContext('2d')!;
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          if (!ctx || !canvas) return;
 
-          const frameData = {
-            width: settings.width!,
-            height: settings.height!,
-            format: settings.format,
-            quality: settings.quality,
-          };
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          let image: string;
 
           try {
-            const image = await processFrameInWorker(canvas, frameData);
-            frames[index] = {
-              offset: targetTime,
-              image,
-            };
+            image = await processFrame(canvas, frameData);
           } catch (error) {
-            console.error(error);
-            const bitmap = await createImageBitmap(canvas);
-            const tempCanvas = new OffscreenCanvas(canvas.width, canvas.height);
-            const tempCtx = tempCanvas.getContext('2d')!;
-            tempCtx.drawImage(bitmap, 0, 0);
-
-            const blob = await tempCanvas.convertToBlob({
-              type: settings.format,
-              quality: settings.quality,
-            });
-            frames[index] = {
-              offset: targetTime,
-              image: URL.createObjectURL(blob),
-            };
+            console.error('Error processing frame:', error);
+            const tempCanvas = document.createElement('canvas');
+            try {
+              tempCanvas.width = canvas.width;
+              tempCanvas.height = canvas.height;
+              const tempCtx = tempCanvas.getContext('2d')!;
+              tempCtx.drawImage(canvas, 0, 0);
+              image = await processFrame(tempCanvas, frameData);
+            } finally {
+              tempCanvas.width = 0;
+              tempCanvas.height = 0;
+            }
           }
+
+          frames[index] = {
+            offset: targetTime,
+            image,
+          };
 
           if (settings.onProgress) {
             settings.onProgress(index + 1, settings.count);
@@ -199,12 +433,22 @@ export const extractVideoFrames = async (
       );
     }
 
-    cleanupWorker();
-
     return frames;
   } catch (error) {
-    cleanupWorker();
-    throw error;
+    console.error('Error extracting frames:', error);
+    frames.forEach((frame) => {
+      if (frame?.image) {
+        URL.revokeObjectURL(frame.image);
+      }
+    });
+    return [];
+  } finally {
+    if (canvas) {
+      canvas.width = 0;
+      canvas.height = 0;
+      canvas = null;
+      ctx = null;
+    }
   }
 };
 

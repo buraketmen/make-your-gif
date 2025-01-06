@@ -2,7 +2,7 @@
 
 import { memo, useEffect, useRef, forwardRef, useState } from 'react';
 import { DrawingFrame } from '@/types/draw';
-import { drawFrameToCanvas } from '@/lib/utils';
+import { drawFrameToCanvas } from '@/lib/video-frames';
 import { useVideo } from '@/context/video-context';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Spinner, SpinnerText } from '@/components/Spinner';

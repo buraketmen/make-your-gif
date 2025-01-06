@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useCallback } from 'react';
 import { Drawing, DrawingFrame, PenSize, DrawingTool, DRAWING_TOOLS } from '@/types/draw';
-import { drawPath } from '@/lib/utils';
+import { drawPath } from '@/lib/video-frames';
 import { useVideo } from './video-context';
 
 interface DrawContextType {
@@ -247,7 +247,7 @@ export const DrawProvider = ({ children }: DrawProviderProps) => {
                 }
               });
 
-              ctx.restore(); // Restore original context state
+              ctx.restore();
             }
           }
 
@@ -454,7 +454,6 @@ export const DrawProvider = ({ children }: DrawProviderProps) => {
           }
         }
 
-        // 4. Clean up
         const tempCanvas = document.getElementById('temp-canvas');
         if (tempCanvas) {
           tempCanvas.removeAttribute('data-copied');
