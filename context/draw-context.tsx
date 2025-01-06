@@ -116,7 +116,8 @@ export const DrawProvider = ({ children }: DrawProviderProps) => {
 
         ctx.stroke(path);
       } catch (error) {
-        setError('Error drawing shape.' + error);
+        console.error('Error drawing shape.', error);
+        setError('Error drawing shape.');
       }
     },
     [currentColor, penSize]
@@ -143,7 +144,8 @@ export const DrawProvider = ({ children }: DrawProviderProps) => {
           y: (clientY - top) * scaleY,
         };
       } catch (error) {
-        setError('Error getting coordinates.' + error);
+        console.error('Error getting coordinates.', error);
+        setError('Error getting coordinates.');
         return { x: 0, y: 0 };
       }
     },
@@ -169,7 +171,8 @@ export const DrawProvider = ({ children }: DrawProviderProps) => {
         setCurrentPoints((prev) => prev.slice(0, -1));
       }
     } catch (error) {
-      setError('Error undoing last drawing.' + error);
+      console.error('Error undoing last drawing.', error);
+      setError('Error undoing last drawing.');
     }
   }, [drawingHistory]);
 
@@ -186,7 +189,8 @@ export const DrawProvider = ({ children }: DrawProviderProps) => {
         setCurrentPoints((prev) => [...prev, ...nextDrawing]);
       }
     } catch (error) {
-      setError('Error redoing last drawing.' + error);
+      console.error('Error redoing last drawing.', error);
+      setError('Error redoing last drawing.');
     }
   }, [redoHistory]);
 
@@ -209,7 +213,8 @@ export const DrawProvider = ({ children }: DrawProviderProps) => {
       setCurrentPoints([]);
       setSelectedFrame(null);
     } catch (error) {
-      setError('Error saving drawing.' + error);
+      console.error('Error saving drawing.', error);
+      setError('Error saving drawing.');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFrame, currentPoints, setFrames, setSelectedFrame]);
@@ -236,7 +241,8 @@ export const DrawProvider = ({ children }: DrawProviderProps) => {
       });
       discardDrawing();
     } catch (error) {
-      setError('Error clearing drawings.' + error);
+      console.error('Error clearing drawings.', error);
+      setError('Error clearing drawings.');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFrame, setFrames, discardDrawing]);
@@ -319,7 +325,8 @@ export const DrawProvider = ({ children }: DrawProviderProps) => {
             });
           }
         } catch (error) {
-          setError('Error rendering frame.' + error);
+          console.error('Error rendering frame.', error);
+          setError('Error rendering frame.');
         }
       };
 
@@ -347,7 +354,8 @@ export const DrawProvider = ({ children }: DrawProviderProps) => {
       setDrawingHistory(newHistory);
       setRedoHistory([]);
     } catch (error) {
-      setError('Error copying from previous frame.' + error);
+      console.error('Error copying from previous frame.', error);
+      setError('Error copying from previous frame.');
     }
   }, [frames, selectedFrame, drawingHistory]);
 
@@ -378,7 +386,8 @@ export const DrawProvider = ({ children }: DrawProviderProps) => {
           }
         });
       } catch (error) {
-        setError('Error starting drawing.' + error);
+        console.error('Error starting drawing.', error);
+        setError('Error starting drawing.');
       }
     },
     [selectedFrame, currentTool, currentColor, penSize, getCoordinates]
@@ -456,7 +465,8 @@ export const DrawProvider = ({ children }: DrawProviderProps) => {
           drawShape(ctx, currentTool, startPoint, coords);
         }
       } catch (error) {
-        setError('Error drawing.' + error);
+        console.error('Error drawing.', error);
+        setError('Error drawing.');
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
     },
@@ -512,7 +522,8 @@ export const DrawProvider = ({ children }: DrawProviderProps) => {
           setStartPoint(null);
         });
       } catch (error) {
-        setError('Error ending drawing.' + error);
+        console.error('Error ending drawing.', error);
+        setError('Error ending drawing.');
       }
     },
     [

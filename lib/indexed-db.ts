@@ -232,7 +232,6 @@ class IndexedDBService {
     if (!this.db) await this.init();
 
     try {
-      console.log('Converting blob to base64...');
       let base64Data: string;
 
       if (blobOrUrl instanceof Blob) {
@@ -245,7 +244,6 @@ class IndexedDBService {
         base64Data = blobOrUrl;
       }
 
-      console.log('Saving to IndexedDB...');
       const tx = this.db!.transaction('blobs', 'readwrite');
       const store = tx.objectStore('blobs');
 
@@ -262,7 +260,6 @@ class IndexedDBService {
         };
 
         request.onsuccess = () => {
-          console.log('Blob saved successfully');
           resolve();
         };
       });

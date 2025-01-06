@@ -49,7 +49,8 @@ export const ShareGifButton = ({ gifUrl, disabled }: ShareGifButtonProps) => {
         URL.revokeObjectURL(url);
       }
     } catch (error) {
-      setError('Error while sharing GIF.' + error);
+      console.error('Error while sharing GIF.', error);
+      setError('Error while sharing GIF.');
     }
   };
 

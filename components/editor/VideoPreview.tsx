@@ -43,7 +43,8 @@ const Video = () => {
           videoRef.current.src = url;
         }
       } catch (error) {
-        setError('Error loading video.' + error);
+        console.error('Error loading video.', error);
+        setError('Error loading video.');
       }
     };
 

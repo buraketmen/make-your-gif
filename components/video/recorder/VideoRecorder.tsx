@@ -172,11 +172,9 @@ export const VideoRecorder = ({ device }: { device: string | null }) => {
 
           mediaRecorderRef.current.onstop = async () => {
             try {
-              console.log('Recording stopped, creating blob...');
               const blob = new Blob(chunksRef.current, {
                 type: mimeType,
               });
-              console.log('Blob created:', blob.size, 'bytes');
 
               if (mediaRecorderRef.current) {
                 mediaRecorderRef.current.ondataavailable = null;
@@ -196,18 +194,19 @@ export const VideoRecorder = ({ device }: { device: string | null }) => {
               chunksRef.current = [];
 
               try {
-                console.log('Handling recorded video...');
                 await handleVideoRecorded(blob, duration);
-                console.log('Video handled successfully');
               } catch (error) {
-                setError('Error saving the recorded video. Please try again.' + error);
+                console.error('Error saving the recorded video.', error);
+                setError('Error saving the recorded video. Please try again.');
               }
             } catch (error) {
-              setError('Error finalizing recording.' + error);
+              console.error('Error finalizing recording.', error);
+              setError('Error finalizing recording.');
             }
           };
         } catch (error) {
-          setError('Error stopping recording.' + error);
+          console.error('Error stopping recording.', error);
+          setError('Error stopping recording.');
         }
       }
     },

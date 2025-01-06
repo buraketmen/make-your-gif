@@ -3,7 +3,6 @@ import { motion } from 'framer-motion';
 import { Upload } from 'lucide-react';
 import { MAX_RECORDING_DURATION, useVideo } from '@/context/video-context';
 
-
 const MAX_FILE_SIZE = 64 * 1024 * 1024; // 64MB
 
 export const FileDropzone = () => {
@@ -36,7 +35,7 @@ export const FileDropzone = () => {
     if (!file.type.startsWith('video/')) {
       return 'Please select a valid video file.';
     }
-    
+
     if (file.size > MAX_FILE_SIZE) {
       return `File size should be less than ${MAX_FILE_SIZE / (1024 * 1024)}MB.`;
     }
@@ -66,47 +65,55 @@ export const FileDropzone = () => {
     setIsDragging(false);
   }, []);
 
-  const handleDrop = useCallback(async (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-    setError(null);
+  const handleDrop = useCallback(
+    async (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragging(false);
+      setError(null);
 
-    const files = Array.from(e.dataTransfer.files);
-    const videoFile = files[0];
-    
-    if (!videoFile) {
-      setError('Please select a file.');
-      return;
-    }
+      const files = Array.from(e.dataTransfer.files);
+      const videoFile = files[0];
 
-    const validationError = await validateFile(videoFile);
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
+      if (!videoFile) {
+        setError('Please select a file.');
+        return;
+      }
 
-    handleFileSelected(videoFile);
-  }, [validateFile, handleFileSelected ]);
+      const validationError = await validateFile(videoFile);
+      if (validationError) {
+        console.error('Error validating file.', validationError);
+        setError('Error validating file.');
+        return;
+      }
 
-  const handleFileInput = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    setError(null);
-    const files = Array.from(e.target.files || []);
-    const videoFile = files[0];
-    
-    if (!videoFile) {
-      setError('Please select a file.');
-      return;
-    }
+      handleFileSelected(videoFile);
+    },
+    [validateFile, handleFileSelected]
+  );
 
-    const validationError = await validateFile(videoFile);
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
-    
-    handleFileSelected(videoFile);
-  }, [handleFileSelected, validateFile]);
+  const handleFileInput = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      setError(null);
+      const files = Array.from(e.target.files || []);
+      const videoFile = files[0];
+
+      if (!videoFile) {
+        setError('Please select a file.');
+        return;
+      }
+
+      const validationError = await validateFile(videoFile);
+      if (validationError) {
+        console.error('Error validating file.', validationError);
+        setError('Error validating file.');
+        return;
+      }
+
+      handleFileSelected(videoFile);
+    },
+    [handleFileSelected, validateFile]
+  );
 
   return (
     <motion.div
@@ -133,16 +140,16 @@ export const FileDropzone = () => {
           <Upload className="w-10 h-10 text-rose-500" />
         </div>
         <div>
-            <div className='flex flex-col gap-4'>
-                <h2 className="text-xl font-semibold text-gray-900 mb-2">Upload Video</h2>
-                <div className='flex flex-col gap-2'>
-                    <p className="text-gray-600 mb-4">
-                        Drag and drop your video here, or click to select
-                    </p>
-                    {error && <p className="text-red-500 mb-4">{error}</p>}
-                </div>
+          <div className="flex flex-col gap-4">
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">Upload Video</h2>
+            <div className="flex flex-col gap-2">
+              <p className="text-gray-600 mb-4">
+                Drag and drop your video here, or click to select
+              </p>
+              {error && <p className="text-red-500 mb-4">{error}</p>}
             </div>
-          
+          </div>
+
           <input
             type="file"
             accept="video/*"
@@ -150,10 +157,8 @@ export const FileDropzone = () => {
             className="hidden"
             id="video-input"
           />
-          
-          
         </div>
       </div>
     </motion.div>
   );
-}; 
+};
