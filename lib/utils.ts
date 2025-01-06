@@ -379,13 +379,13 @@ export const getVideoOutputFormat = (mimeType: string): VideoFormat => {
 export const getFFmpegCodecArgs = (codec: string): string[] => {
   switch (codec) {
     case 'vp8':
-      return ['-c:v', 'vp8', '-b:v', '1M', '-deadline', 'realtime', '-cpu-used', '0'];
+      return ['-c:v', 'vp8', '-b:v', '1M', '-deadline', 'realtime'];
     case 'vp9':
-      return ['-c:v', 'vp9', '-b:v', '1M', '-deadline', 'realtime', '-cpu-used', '0'];
+      return ['-c:v', 'vp9', '-b:v', '1M', '-deadline', 'realtime'];
     case 'h264':
-      return ['-c:v', 'h264', '-deadline', 'realtime', '-crf', '23', '-threads', '0'];
+      return ['-c:v', 'h264', '-deadline', 'realtime', '-crf', '23'];
     default:
-      return ['-c:v', 'vp8', '-b:v', '1M', '-deadline', 'realtime', '-cpu-used', '0'];
+      return ['-c:v', 'vp8', '-b:v', '1M', '-deadline', 'realtime'];
   }
 };
 
