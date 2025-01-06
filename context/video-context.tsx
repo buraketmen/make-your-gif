@@ -1,16 +1,24 @@
-"use client"
-import { createContext, useContext, useState, useRef, useEffect, ReactNode, useCallback } from 'react';
+'use client';
+import {
+  createContext,
+  useContext,
+  useState,
+  useRef,
+  useEffect,
+  ReactNode,
+  useCallback,
+} from 'react';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { DrawingFrame, Mode } from '@/types/draw';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
-import { 
-  drawFrameToCanvas, 
-  extractFramesFromVideo, 
-  calculateCropDimensions, 
+import {
+  drawFrameToCanvas,
+  extractFramesFromVideo,
+  calculateCropDimensions,
   getSupportedMimeType,
   getVideoOutputFormat,
   getFFmpegCodecArgs,
-  getCameras
+  getCameras,
 } from '@/lib/utils';
 
 export const TARGET_FPS = 30;
@@ -28,7 +36,6 @@ interface VideoFilters {
     isCropMode: boolean;
   };
 }
-
 
 interface VideoContextType {
   mimeType: string;
@@ -49,11 +56,12 @@ interface VideoContextType {
     isCropping: boolean;
     isTrimming: boolean;
     isGeneratingGif: boolean;
-  },
+  };
   frameProgress: {
     current: number;
     total: number;
-  },
+  };
+  videoProgress: number;
   isRecording: boolean;
   setIsRecording: (value: boolean) => void;
   isMirrored: boolean;
@@ -115,13 +123,13 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
     trim: {
       start: 0,
       end: 0,
-      isActive: false
+      isActive: false,
     },
     crop: {
       coordinates: { x: 20, y: 20, width: 60, height: 60 },
       isActive: false,
-      isCropMode: false
-    }
+      isCropMode: false,
+    },
   });
   const [processes, setProcesses] = useState({
     isConverting: false,
@@ -144,7 +152,8 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
   const [frames, setFrames] = useState<DrawingFrame[]>([]);
   const [selectedFrame, setSelectedFrame] = useState<DrawingFrame | null>(null);
   const [gifSize, setGifSize] = useState(480);
-  
+  const [videoProgress, setVideoProgress] = useState(0);
+
   useEffect(() => {
     if (videoFilters.crop.isActive === false && videoFilters.trim.isActive === false) {
       setVideoBlob(baseVideoBlob);
@@ -154,7 +163,7 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
   useEffect(() => {
     const fetchCameras = async () => {
       const allCameras = await getCameras();
-      
+
       if (allCameras.deviceIds.length > 0) {
         const newDeviceId = allCameras.deviceIds[0];
         if (newDeviceId) {
@@ -166,26 +175,26 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
     fetchCameras();
   }, []);
 
-    const refreshCameras = useCallback(async () => {
-        try {
-            const allCameras = await getCameras();
-            
-            if (allCameras.deviceIds.length > 0 && !deviceId) {
-                if (allCameras.deviceIds[0]) {
-                    setDeviceId(allCameras.deviceIds[0]);
-                    setCameras(allCameras.cameras);
-                }
-            }
-        } catch (error) {
-            console.error('Error getting camera devices:', error);
+  const refreshCameras = useCallback(async () => {
+    try {
+      const allCameras = await getCameras();
+
+      if (allCameras.deviceIds.length > 0 && !deviceId) {
+        if (allCameras.deviceIds[0]) {
+          setDeviceId(allCameras.deviceIds[0]);
+          setCameras(allCameras.cameras);
         }
+      }
+    } catch (error) {
+      console.error('Error getting camera devices:', error);
+    }
   }, [deviceId]);
 
   useEffect(() => {
     refreshCameras();
-    
+
     navigator.mediaDevices?.addEventListener('devicechange', refreshCameras);
-    
+
     return () => {
       navigator.mediaDevices?.removeEventListener('devicechange', refreshCameras);
     };
@@ -203,12 +212,15 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
     }
   }, [ffmpegRef]);
 
-    const handleGifUrlChange = useCallback((newUrl: string | null) => {
-        if (gifUrl) {
+  const handleGifUrlChange = useCallback(
+    (newUrl: string | null) => {
+      if (gifUrl) {
         URL.revokeObjectURL(gifUrl);
-        }
-        setGifUrl(newUrl);
-    }, [gifUrl]);
+      }
+      setGifUrl(newUrl);
+    },
+    [gifUrl]
+  );
 
   const generateGif = useCallback(async () => {
     if (!videoBlob || frames.length === 0) {
@@ -216,7 +228,7 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
     }
 
     try {
-      setProcesses(prev => ({ ...prev, isGeneratingGif: true }));
+      setProcesses((prev) => ({ ...prev, isGeneratingGif: true }));
       await loadFFmpeg();
       const ffmpeg = ffmpegRef.current!;
 
@@ -228,12 +240,16 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
         const frame = frames[i];
         await drawFrameToCanvas(frame, canvas);
         await new Promise<void>((resolve) => {
-          canvas.toBlob(async (blob) => {
-            if (blob) {
-              await ffmpeg.writeFile(`frame${i}.jpg`, await fetchFile(blob));
-              resolve();
-            }
-          }, 'image/jpeg');
+          canvas.toBlob(
+            async (blob) => {
+              if (blob) {
+                await ffmpeg.writeFile(`frame${i}.png`, await fetchFile(blob));
+                resolve();
+              }
+            },
+            'image/png',
+            1.0
+          );
         });
       }
 
@@ -245,11 +261,15 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
       const filterComplex = filterCommands.join(',');
 
       await ffmpeg.exec([
-        '-framerate', TARGET_FPS.toString(),
-        '-i', 'frame%d.jpg',
-        '-vf', filterComplex,
-        '-r', TARGET_FPS.toString(),
-        'output.gif'
+        '-framerate',
+        TARGET_FPS.toString(),
+        '-i',
+        'frame%d.png',
+        '-vf',
+        filterComplex,
+        '-r',
+        TARGET_FPS.toString(),
+        'output.gif',
       ]);
 
       const data = await ffmpeg.readFile('output.gif');
@@ -258,7 +278,7 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
     } catch (error) {
       console.error('Error generating GIF:', error);
     } finally {
-      setProcesses(prev => ({ ...prev, isGeneratingGif: false }));
+      setProcesses((prev) => ({ ...prev, isGeneratingGif: false }));
     }
   }, [videoBlob, frames, videoFilters, loadFFmpeg, handleGifUrlChange, gifSize]);
 
@@ -287,93 +307,131 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
     setIsRecording(false);
   };
 
-  const cropVideoToOriginalSize = async (blob: Blob): Promise<Blob> => {
+  const cropVideoToOriginalSize = async (blob: Blob, videoDuration: number): Promise<Blob> => {
+    let video: HTMLVideoElement | null = null;
+    let videoUrl: string | null = null;
     try {
-      setProcesses(prev => ({ ...prev, isConverting: true }));
-      const video = document.createElement('video');
-      video.preload = 'metadata';
-      
-      await new Promise((resolve) => {
-        video.onloadedmetadata = () => resolve(null);
-        video.src = URL.createObjectURL(blob);
-      });
+      setProcesses((prev) => ({ ...prev, isConverting: true }));
+      setVideoProgress(0);
 
-      const width = video.videoWidth;
-      const height = video.videoHeight;
-      URL.revokeObjectURL(video.src);
-      video.remove();
+      const videoElement = document.createElement('video');
+      video = videoElement;
+      video.preload = 'metadata';
+      videoUrl = URL.createObjectURL(blob);
+
+      const dimensions = await new Promise<{ width: number; height: number }>((resolve, reject) => {
+        if (!videoElement) return reject(new Error('Video element is null'));
+
+        videoElement.onloadedmetadata = () => {
+          resolve({
+            width: videoElement.videoWidth,
+            height: videoElement.videoHeight,
+          });
+        };
+        videoElement.onerror = () => reject(new Error('Failed to load video metadata'));
+        videoElement.src = videoUrl || '';
+      });
 
       await loadFFmpeg();
       const ffmpeg = ffmpegRef.current!;
 
+      const progressCallback = ({ message }: { message: string }) => {
+        const timeMatch = message.match(/time=(\d+:\d+:\d+.\d+)/);
+        if (timeMatch && video) {
+          const [hours, minutes, seconds] = timeMatch[1].split(':').map(Number);
+          const currentTime = hours * 3600 + minutes * 60 + seconds;
+          console.log('currentTime', currentTime, 'video duration', videoDuration);
+          const progress = (currentTime / videoDuration) * 100;
+          setVideoProgress(Math.min(Math.round(isNaN(progress) ? 0 : progress), 100));
+        }
+      };
+
+      ffmpeg.on('log', progressCallback);
+
       const { format, codec } = getVideoOutputFormat(mimeType);
       const fileNames = {
         input: `input.${format}`,
-        output: `output.${format}`
-      }
+        output: `output.${format}`,
+      };
 
       await ffmpeg.writeFile(fileNames.input, await fetchFile(blob));
 
-      try {
-        await ffmpeg.exec([
-            '-i', fileNames.input,
-            '-vf', `crop=${width}:${height}:0:0`,
-            ...getFFmpegCodecArgs(codec),
-            '-r', '30',
-            fileNames.output
-        ]);
-      } catch (execError) {
-        console.error('FFmpeg execution error:', execError);
-        throw execError;
-      }
+      // Optimize FFmpeg command with better parameters
+      await ffmpeg.exec([
+        '-i',
+        fileNames.input,
+
+        '-vf',
+        `crop=${dimensions.width}:${dimensions.height}:0:0`,
+        ...getFFmpegCodecArgs(codec),
+
+        '-r',
+        TARGET_FPS.toString(),
+        fileNames.output,
+      ]);
 
       const data = await ffmpeg.readFile(fileNames.output);
-      
+      await ffmpeg.deleteFile(fileNames.input).catch(() => {});
+      await ffmpeg.deleteFile(fileNames.output).catch(() => {});
+
+      // Remove the progress listener
+      ffmpeg.off('log', progressCallback);
+      setVideoProgress(100);
+
       return new Blob([data], { type: mimeType });
     } catch (error) {
       console.error('Error cropping video to original size:', error);
       return blob;
     } finally {
-      setProcesses(prev => ({ ...prev, isConverting: false }));
+      if (videoUrl) {
+        URL.revokeObjectURL(videoUrl);
+      }
+      if (video) {
+        video.src = '';
+        video.load();
+        video.remove();
+      }
+      video = null;
+      setProcesses((prev) => ({ ...prev, isConverting: false }));
     }
   };
 
   const handleVideoRecorded = async (blob: Blob, videoDuration: number) => {
     try {
-        const croppedBlob = await cropVideoToOriginalSize(blob);
-        setBaseVideoBlob(croppedBlob);
-        setVideoBlob(croppedBlob);
-        setIsRecording(false);
-        setDuration(videoDuration);
-        setVideoFilters(prev => ({
-            ...prev,
-            trim: { ...prev.trim, end: videoDuration }
-        }));
-        await extractFramesForVideo(croppedBlob);
-        } catch (error) {
-        console.error('Error handling recorded video:', error);
-        } finally {
-        setProcesses(prev => ({ ...prev, isConverting: false }));
-        }
+      const croppedBlob = await cropVideoToOriginalSize(blob, videoDuration);
+      setBaseVideoBlob(croppedBlob);
+      setVideoBlob(croppedBlob);
+      setIsRecording(false);
+      setDuration(videoDuration);
+      setVideoFilters((prev) => ({
+        ...prev,
+        trim: { ...prev.trim, end: videoDuration },
+      }));
+      await extractFramesForVideo(croppedBlob);
+    } catch (error) {
+      console.error('Error handling recorded video:', error);
+    } finally {
+      setProcesses((prev) => ({ ...prev, isConverting: false }));
+    }
   };
 
   const handleFileSelected = async (file: File) => {
     if (file && file.type.startsWith('video/')) {
       try {
-        const croppedBlob = await cropVideoToOriginalSize(file);
+        const croppedBlob = await cropVideoToOriginalSize(file, MAX_RECORDING_DURATION);
         setBaseVideoBlob(croppedBlob);
         setVideoBlob(croppedBlob);
-        
+
         const video = document.createElement('video');
         video.preload = 'metadata';
         video.src = URL.createObjectURL(croppedBlob);
-        
+
         video.onloadedmetadata = async () => {
           const videoDuration = Math.floor(video.duration);
           setDuration(videoDuration);
-          setVideoFilters(prev => ({
+          setVideoFilters((prev) => ({
             ...prev,
-            trim: { ...prev.trim, end: videoDuration }
+            trim: { ...prev.trim, end: videoDuration },
           }));
           URL.revokeObjectURL(video.src);
           await extractFramesForVideo(croppedBlob);
@@ -394,7 +452,12 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
       const waitForValidDuration = () => {
         return new Promise<void>((resolve) => {
           const checkDuration = () => {
-            if (video.duration && isFinite(video.duration) && video.videoWidth && video.videoHeight) {
+            if (
+              video.duration &&
+              isFinite(video.duration) &&
+              video.videoWidth &&
+              video.videoHeight
+            ) {
               resolve();
             } else {
               setTimeout(checkDuration, 50);
@@ -407,7 +470,7 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
       waitForValidDuration()
         .then(async () => {
           try {
-            setProcesses(prev => ({ ...prev, isFrameExtracting: true }));
+            setProcesses((prev) => ({ ...prev, isFrameExtracting: true }));
             const frames = await extractFramesFromVideo(
               video,
               TARGET_FPS,
@@ -417,30 +480,29 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
                 setFrameProgress({ current, total });
               }
             );
-            
+
             setFrames(frames);
           } catch (error) {
             console.error('Error extracting frames:', error);
           } finally {
-            setProcesses(prev => ({ ...prev, isFrameExtracting: false }));
+            setProcesses((prev) => ({ ...prev, isFrameExtracting: false }));
             video.remove();
-            
           }
         })
-        .catch(error => {
+        .catch((error) => {
           console.error('Error loading video:', error);
           video.remove();
-          setProcesses(prev => ({ ...prev, isFrameExtracting: false }));
+          setProcesses((prev) => ({ ...prev, isFrameExtracting: false }));
         });
     };
 
-    video.preload = "auto";
+    video.preload = 'auto';
     video.muted = true;
     video.onloadeddata = handleVideoLoad;
     video.onerror = (error) => {
       console.error('Error loading video:', error);
     };
-    
+
     video.src = URL.createObjectURL(blob);
     video.load();
 
@@ -460,13 +522,13 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
       trim: {
         start: 0,
         end: 0,
-        isActive: false
+        isActive: false,
       },
       crop: {
         coordinates: { x: 20, y: 20, width: 60, height: 60 },
         isActive: false,
-        isCropMode: false
-      }
+        isCropMode: false,
+      },
     });
     setProcesses({
       isConverting: false,
@@ -477,21 +539,26 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
     });
     handleGifUrlChange(null);
     setLastUpdatedAt(Date.now());
+    // Clean up worker when resetting
+    if (typeof window !== 'undefined') {
+      const { cleanupWorker } = require('@/lib/video-frames');
+      cleanupWorker();
+    }
   };
 
   const handleCropVideo = async () => {
     if (!baseVideoBlob) return;
     try {
-      setProcesses(prev => ({ ...prev, isCropping: true }));
+      setProcesses((prev) => ({ ...prev, isCropping: true }));
       setSelectedFrame(null);
       await loadFFmpeg();
       const ffmpeg = ffmpegRef.current!;
 
       const video = document.createElement('video');
       video.preload = 'metadata';
-      
+
       const videoUrl = URL.createObjectURL(baseVideoBlob);
-      
+
       await new Promise((resolve) => {
         video.onloadedmetadata = () => resolve(null);
         video.src = videoUrl;
@@ -499,7 +566,7 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
 
       const videoWidth = video.videoWidth;
       const videoHeight = video.videoHeight;
-      
+
       // Clean up resources
       URL.revokeObjectURL(videoUrl);
       video.src = '';
@@ -508,8 +575,8 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
       const { format, codec } = getVideoOutputFormat(mimeType);
       const fileNames = {
         input: `input.${format}`,
-        output: `output.${format}`
-      }
+        output: `output.${format}`,
+      };
 
       try {
         await ffmpeg.writeFile(fileNames.input, await fetchFile(baseVideoBlob));
@@ -521,24 +588,27 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
         );
 
         await ffmpeg.exec([
-          '-i', fileNames.input,
-          '-vf', cropDimensions.ffmpegFilter,
+          '-i',
+          fileNames.input,
+          '-vf',
+          cropDimensions.ffmpegFilter,
           ...getFFmpegCodecArgs(codec),
-          '-r', '30',
-          fileNames.output
+          '-r',
+          '30',
+          fileNames.output,
         ]);
 
         const data = await ffmpeg.readFile(fileNames.output);
         const croppedBlob = new Blob([data], { type: mimeType });
-        
+
         // Clean up FFmpeg files
         await ffmpeg.deleteFile(fileNames.input);
         await ffmpeg.deleteFile(fileNames.output);
-        
+
         setVideoBlob(croppedBlob);
-        setVideoFilters(prev => ({
+        setVideoFilters((prev) => ({
           ...prev,
-          crop: { ...prev.crop, isActive: true, isCropMode: false }
+          crop: { ...prev.crop, isActive: true, isCropMode: false },
         }));
 
         await extractFramesForVideo(croppedBlob);
@@ -549,7 +619,7 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
     } catch (error) {
       console.error('Error cropping video:', error);
     } finally {
-      setProcesses(prev => ({ ...prev, isCropping: false }));
+      setProcesses((prev) => ({ ...prev, isCropping: false }));
       setLastUpdatedAt(Date.now());
     }
   };
@@ -559,13 +629,13 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
       try {
         setSelectedFrame(null);
         setVideoBlob(baseVideoBlob);
-        setVideoFilters(prev => ({
+        setVideoFilters((prev) => ({
           ...prev,
           crop: {
             coordinates: { x: 20, y: 20, width: 60, height: 60 },
             isActive: false,
-            isCropMode: false
-          }
+            isCropMode: false,
+          },
         }));
         await extractFramesForVideo(baseVideoBlob!);
         setLastUpdatedAt(Date.now());
@@ -576,25 +646,25 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
   };
 
   const handleTrimStart = (value: number) => {
-    setVideoFilters(prev => ({
+    setVideoFilters((prev) => ({
       ...prev,
       trim: {
         ...prev.trim,
         start: value,
-        isActive: value > 0 || prev.trim.end < duration
-      }
+        isActive: value > 0 || prev.trim.end < duration,
+      },
     }));
     setLastUpdatedAt(Date.now());
   };
 
   const handleTrimEnd = (value: number) => {
-    setVideoFilters(prev => ({
+    setVideoFilters((prev) => ({
       ...prev,
       trim: {
         ...prev.trim,
         end: value,
-        isActive: prev.trim.start > 0 || value < duration
-      }
+        isActive: prev.trim.start > 0 || value < duration,
+      },
     }));
     setLastUpdatedAt(Date.now());
   };
@@ -616,7 +686,7 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
     setDeviceId,
     cameras,
     refreshCameras,
-    
+
     lastUpdatedAt,
     gifUrl,
     processes,
@@ -637,25 +707,24 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
     setIsMirrored,
     isLandscape,
     setIsLandscape,
-    
+
     frames,
     setFrames,
     selectedFrame,
     setSelectedFrame,
-    
+
     setTrimStart: handleTrimStart,
     setTrimEnd: handleTrimEnd,
-    setCrop: (newCoordinates: { x: number; y: number; width: number; height: number }) => 
-      setVideoFilters(prev => ({
+    setCrop: (newCoordinates: { x: number; y: number; width: number; height: number }) =>
+      setVideoFilters((prev) => ({
         ...prev,
-        crop: { ...prev.crop, coordinates: newCoordinates }
+        crop: { ...prev.crop, coordinates: newCoordinates },
       })),
-    setIsCropMode: (value: boolean) => 
-      setVideoFilters(prev => ({
+    setIsCropMode: (value: boolean) =>
+      setVideoFilters((prev) => ({
         ...prev,
-        crop: { ...prev.crop, isCropMode: value }
+        crop: { ...prev.crop, isCropMode: value },
       })),
-    
 
     handleStartRecording,
     handleStopRecording,
@@ -667,11 +736,18 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
     handleDownloadGif,
     gifSize,
     setGifSize,
+    videoProgress,
   };
 
-  return (
-    <VideoContext.Provider value={value}>
-      {children}
-    </VideoContext.Provider>
-  );
-}; 
+  // Add cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (typeof window !== 'undefined') {
+        const { cleanupWorker } = require('@/lib/video-frames');
+        cleanupWorker();
+      }
+    };
+  }, []);
+
+  return <VideoContext.Provider value={value}>{children}</VideoContext.Provider>;
+};

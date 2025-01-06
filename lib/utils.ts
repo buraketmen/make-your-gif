@@ -1,10 +1,10 @@
-import { type ClassValue, clsx } from "clsx"
-import { twMerge } from "tailwind-merge"
+import { type ClassValue, clsx } from 'clsx';
+import { twMerge } from 'tailwind-merge';
 import { DRAWING_TOOLS, DrawingFrame, DrawingTool } from '@/types/draw';
 import { extractVideoFrames, convertToDrawingFrames } from './video-frames';
 
 export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
+  return twMerge(clsx(inputs));
 }
 
 interface LegacyNavigator extends Navigator {
@@ -25,47 +25,49 @@ interface LegacyNavigator extends Navigator {
   ) => void;
 }
 
-
 export const getMediaDevices = async (): Promise<MediaDevices> => {
-     if ((navigator as unknown as Record<string, unknown>).mediaDevices === undefined) {
-        (navigator as unknown as Record<string, unknown>).mediaDevices = {};
+  if ((navigator as unknown as Record<string, unknown>).mediaDevices === undefined) {
+    (navigator as unknown as Record<string, unknown>).mediaDevices = {};
+  }
+
+  if (navigator.mediaDevices.getUserMedia === undefined) {
+    navigator.mediaDevices.getUserMedia = function (constraints: MediaStreamConstraints) {
+      const getUserMedia =
+        (navigator as unknown as LegacyNavigator).webkitGetUserMedia ||
+        (navigator as unknown as LegacyNavigator).mozGetUserMedia ||
+        (navigator as unknown as LegacyNavigator).msGetUserMedia;
+
+      if (!getUserMedia) {
+        return Promise.reject(new Error('getUserMedia is not implemented in this browser'));
       }
 
-      if (navigator.mediaDevices.getUserMedia === undefined) {
-        navigator.mediaDevices.getUserMedia = function(constraints: MediaStreamConstraints) {
-          const getUserMedia = ((navigator as unknown as LegacyNavigator).webkitGetUserMedia ||
-            (navigator as unknown as LegacyNavigator).mozGetUserMedia ||
-            (navigator as unknown as LegacyNavigator).msGetUserMedia);
+      return new Promise((resolve, reject) => {
+        getUserMedia.call(navigator, constraints, resolve, reject);
+      });
+    };
+  }
+  return navigator.mediaDevices;
+};
 
-          if (!getUserMedia) {
-            return Promise.reject(new Error('getUserMedia is not implemented in this browser'));
-          }
-
-          return new Promise((resolve, reject) => {
-            getUserMedia.call(navigator, constraints, resolve, reject);
-          });
-        }
-      }
-      return navigator.mediaDevices;
-}
-
-export const getCameras = async (): Promise<{cameras: MediaDeviceInfo[], deviceIds: string[]}> => {
+export const getCameras = async (): Promise<{
+  cameras: MediaDeviceInfo[];
+  deviceIds: string[];
+}> => {
   const mediaDevices = await getMediaDevices();
   if (!mediaDevices || !mediaDevices.enumerateDevices) {
     return {
       cameras: [],
-      deviceIds: []
+      deviceIds: [],
     };
   }
   await mediaDevices.getUserMedia({ video: true });
   const devices = await mediaDevices.enumerateDevices();
-  const videoDevices = devices.filter(device => device.kind === 'videoinput');
+  const videoDevices = devices.filter((device) => device.kind === 'videoinput');
   return {
     cameras: videoDevices,
-    deviceIds: videoDevices.map(device => device.deviceId)
+    deviceIds: videoDevices.map((device) => device.deviceId),
   };
-}
-
+};
 
 interface CropDimensions {
   pixels: {
@@ -80,11 +82,11 @@ interface CropDimensions {
 
 export const calculateCropDimensions = (
   coordinates: {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-},
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  },
   videoWidth: number,
   videoHeight: number
 ): CropDimensions => {
@@ -98,10 +100,10 @@ export const calculateCropDimensions = (
       x: cropX,
       y: cropY,
       width: cropWidth,
-      height: cropHeight
+      height: cropHeight,
     },
     ffmpegFilter: `crop=${cropWidth}:${cropHeight}:${cropX}:${cropY}`,
-    relativeFilter: `crop=iw*${coordinates.width/100}:ih*${coordinates.height/100}:iw*${coordinates.x/100}:ih*${coordinates.y/100}`
+    relativeFilter: `crop=iw*${coordinates.width / 100}:ih*${coordinates.height / 100}:iw*${coordinates.x / 100}:ih*${coordinates.y / 100}`,
   };
 };
 
@@ -117,13 +119,13 @@ export const drawPath = (
   ctx.beginPath();
   ctx.strokeStyle = color;
   ctx.lineWidth = penSize;
-  
+
   switch (tool) {
     case DRAWING_TOOLS.PEN.id:
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
       ctx.moveTo(points[0].x, points[0].y);
-      
+
       for (let i = 1; i < points.length; i++) {
         ctx.lineTo(points[i].x, points[i].y);
       }
@@ -136,7 +138,13 @@ export const drawPath = (
       ctx.rect(points[0].x, points[0].y, points[1].x - points[0].x, points[1].y - points[0].y);
       break;
     case DRAWING_TOOLS.CIRCLE.id:
-      ctx.arc(points[0].x, points[0].y, Math.sqrt(Math.pow(points[1].x - points[0].x, 2) + Math.pow(points[1].y - points[0].y, 2)), 0, 2 * Math.PI);
+      ctx.arc(
+        points[0].x,
+        points[0].y,
+        Math.sqrt(Math.pow(points[1].x - points[0].x, 2) + Math.pow(points[1].y - points[0].y, 2)),
+        0,
+        2 * Math.PI
+      );
       break;
     default:
       break;
@@ -145,50 +153,94 @@ export const drawPath = (
 };
 
 export const drawFrameToCanvas = (frame: DrawingFrame, canvas: HTMLCanvasElement) => {
-  const ctx = canvas.getContext('2d')!;
-  const img = document.createElement('img');
-  
+  const ctx = canvas.getContext('2d', {
+    alpha: false,
+    desynchronized: true,
+    willReadFrequently: false,
+  })!;
+
+  const img = new Image();
+  img.decoding = 'async';
+
   return new Promise<void>((resolve, reject) => {
     img.onload = () => {
       const width = frame.width || img.naturalWidth;
       const height = frame.height || img.naturalHeight;
-      
-      canvas.width = width;
-      canvas.height = height;
-      ctx.clearRect(0, 0, width, height);
+
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+      }
+
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.globalCompositeOperation = 'copy';
       ctx.drawImage(img, 0, 0, width, height);
+      ctx.globalCompositeOperation = 'source-over';
 
-      frame.drawings.forEach(drawing => {
-        if (drawing.tool === DRAWING_TOOLS.PEN.id) {
-          drawPath(ctx, drawing.points, drawing.color, drawing.penSize);
-        } else if (drawing.points.length === 2) {
+      if (frame.drawings.length > 0) {
+        const hasComplexDrawings = frame.drawings.some(
+          (d) => d.tool !== DRAWING_TOOLS.PEN.id && d.points.length === 2
+        );
+
+        if (hasComplexDrawings) {
+          frame.drawings.forEach((drawing) => {
+            ctx.beginPath();
+            ctx.strokeStyle = drawing.color;
+            ctx.lineWidth = drawing.penSize;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            if (drawing.tool === DRAWING_TOOLS.PEN.id) {
+              if (drawing.points.length >= 2) {
+                ctx.moveTo(drawing.points[0].x, drawing.points[0].y);
+                for (let i = 1; i < drawing.points.length; i++) {
+                  ctx.lineTo(drawing.points[i].x, drawing.points[i].y);
+                }
+              }
+            } else if (drawing.points.length === 2) {
+              const [start, end] = drawing.points;
+              switch (drawing.tool) {
+                case DRAWING_TOOLS.LINE.id:
+                  ctx.moveTo(start.x, start.y);
+                  ctx.lineTo(end.x, end.y);
+                  break;
+                case DRAWING_TOOLS.RECTANGLE.id:
+                  ctx.rect(start.x, start.y, end.x - start.x, end.y - start.y);
+                  break;
+                case DRAWING_TOOLS.CIRCLE.id:
+                  const radius = Math.hypot(end.x - start.x, end.y - start.y);
+                  ctx.arc(start.x, start.y, radius, 0, 2 * Math.PI);
+                  break;
+              }
+            }
+            ctx.stroke();
+          });
+        } else {
           ctx.beginPath();
-          ctx.strokeStyle = drawing.color;
-          ctx.lineWidth = drawing.penSize;
-          ctx.lineCap = 'round';
-          ctx.lineJoin = 'round';
+          let currentColor = '';
+          let currentSize = 0;
 
-          const [start, end] = drawing.points;
-          switch (drawing.tool) {
-            case DRAWING_TOOLS.LINE.id:
-              ctx.moveTo(start.x, start.y);
-              ctx.lineTo(end.x, end.y);
-              break;
-            case DRAWING_TOOLS.RECTANGLE.id:
-              const rectWidth = end.x - start.x;
-              const rectHeight = end.y - start.y;
-              ctx.rect(start.x, start.y, rectWidth, rectHeight);
-              break;
-            case DRAWING_TOOLS.CIRCLE.id:
-              const radius = Math.sqrt(
-                Math.pow(end.x - start.x, 2) + Math.pow(end.y - start.y, 2)
-              );
-              ctx.arc(start.x, start.y, radius, 0, 2 * Math.PI);
-              break;
-          }
-          ctx.stroke();
+          frame.drawings.forEach((drawing) => {
+            if (drawing.color !== currentColor || drawing.penSize !== currentSize) {
+              if (currentColor) ctx.stroke();
+              ctx.beginPath();
+              ctx.strokeStyle = drawing.color;
+              ctx.lineWidth = drawing.penSize;
+              currentColor = drawing.color;
+              currentSize = drawing.penSize;
+            }
+
+            if (drawing.points.length >= 2) {
+              ctx.moveTo(drawing.points[0].x, drawing.points[0].y);
+              for (let i = 1; i < drawing.points.length; i++) {
+                ctx.lineTo(drawing.points[i].x, drawing.points[i].y);
+              }
+            }
+          });
+          if (currentColor) ctx.stroke();
         }
-      });
+      }
 
       resolve();
     };
@@ -201,7 +253,6 @@ export const drawFrameToCanvas = (frame: DrawingFrame, canvas: HTMLCanvasElement
   });
 };
 
-
 export const extractFramesFromVideo = (
   video: HTMLVideoElement,
   fps: number = 30,
@@ -213,30 +264,42 @@ export const extractFramesFromVideo = (
     try {
       const effectiveStart = startTime ?? 0;
       const effectiveEnd = endTime ?? video.duration;
-      
+
+      const canvas = document.createElement('canvas');
+      canvas.getContext('2d', {
+        alpha: false,
+        desynchronized: true,
+        willReadFrequently: false,
+      })!;
+
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+
+      // Pre-allocate arrays for better memory management
+      const frameCount = Math.floor((effectiveEnd - effectiveStart) * fps);
       const videoFrames = await extractVideoFrames({
         video,
-        format: 'image/jpeg',
+        format: 'image/png',
         quality: 1,
         startTime: effectiveStart,
         endTime: effectiveEnd,
-        count: Math.floor((effectiveEnd - effectiveStart) * fps),
-        onProgress: (current, total) => {
-          if (onProgress) {
-            onProgress(current, total);
-          }
-        },
+        count: frameCount,
+        onProgress,
       });
 
       const drawingFrames = convertToDrawingFrames(videoFrames);
-      
+
       if (drawingFrames.length > 0) {
-        const img = document.createElement('img');
+        const img = new Image();
+        img.decoding = 'async';
+
         await new Promise<void>((resolve, reject) => {
           img.onload = () => {
-            drawingFrames.forEach(frame => {
-              frame.width = img.width;
-              frame.height = img.height;
+            const width = img.width;
+            const height = img.height;
+            drawingFrames.forEach((frame) => {
+              frame.width = width;
+              frame.height = height;
             });
             resolve();
           };
@@ -244,6 +307,9 @@ export const extractFramesFromVideo = (
           img.src = drawingFrames[0].imageData;
         });
       }
+
+      canvas.width = 0;
+      canvas.height = 0;
 
       resolve(drawingFrames);
     } catch (error) {
@@ -262,7 +328,7 @@ export const getSupportedMimeType = (): string => {
     'video/webm;codecs=vp9,opus',
     'video/webm;codecs=vp8',
     'video/webm;codecs=daala',
-    'video/mpeg'
+    'video/mpeg',
   ];
 
   if (typeof MediaRecorder === 'undefined') {
@@ -270,7 +336,7 @@ export const getSupportedMimeType = (): string => {
     return types[0];
   }
 
-  const supported = types.find(type => {
+  const supported = types.find((type) => {
     try {
       return MediaRecorder.isTypeSupported(type);
     } catch (e) {
@@ -296,52 +362,32 @@ export const getVideoOutputFormat = (mimeType: string): VideoFormat => {
   if (mimeType.includes('webm')) {
     return {
       format: 'webm',
-      codec: mimeType.includes('vp8') ? 'vp8' : 
-             mimeType.includes('vp9') ? 'vp9' : 'vp8'
+      codec: mimeType.includes('vp8') ? 'vp8' : mimeType.includes('vp9') ? 'vp9' : 'vp8',
     };
   } else if (mimeType.includes('mp4')) {
     return {
       format: 'mp4',
-      codec: 'h264'
+      codec: 'h264',
     };
   }
   return {
     format: 'webm',
-    codec: 'vp8'
+    codec: 'vp8',
   };
 };
 
 export const getFFmpegCodecArgs = (codec: string): string[] => {
   switch (codec) {
     case 'vp8':
-      return [
-        '-c:v', 'vp8',
-        '-b:v', '1M',
-        '-deadline', 'realtime',
-        '-cpu-used', '4'
-      ];
+      return ['-c:v', 'vp8', '-b:v', '1M', '-deadline', 'realtime', '-cpu-used', '0'];
     case 'vp9':
-      return [
-        '-c:v', 'vp9',
-        '-b:v', '1M',
-        '-deadline', 'realtime',
-        '-cpu-used', '4'
-      ];
+      return ['-c:v', 'vp9', '-b:v', '1M', '-deadline', 'realtime', '-cpu-used', '0'];
     case 'h264':
-      return [
-        '-c:v', 'h264',
-        '-preset', 'ultrafast',
-        '-crf', '23'
-      ];
+      return ['-c:v', 'h264', '-deadline', 'realtime', '-crf', '23', '-threads', '0'];
     default:
-      return [
-        '-c:v', 'vp8',
-        '-b:v', '1M',
-        '-deadline', 'realtime',
-        '-cpu-used', '4'
-      ];
+      return ['-c:v', 'vp8', '-b:v', '1M', '-deadline', 'realtime', '-cpu-used', '0'];
   }
-}; 
+};
 
 interface VideoConstraints {
   width?: MediaTrackConstraints['width'];
@@ -353,58 +399,59 @@ interface VideoConstraints {
 }
 
 interface Resolution {
-    min: number;
-    ideal: number;
-    max: number;
+  min: number;
+  ideal: number;
+  max: number;
 }
 
 interface Resolutions {
-    landscape: {
-        height: Resolution;
-        width: Resolution;
-    };
-    portrait: {
-        height: Resolution;
-        width: Resolution;
-    };
+  landscape: {
+    height: Resolution;
+    width: Resolution;
+  };
+  portrait: {
+    height: Resolution;
+    width: Resolution;
+  };
 }
 
-
-
-export const getOptimalVideoConstraints = async (deviceId: string | null, isLandscape: boolean = true): Promise<VideoConstraints> => {
-    const resolutions: Resolutions= {
-        landscape: {
-            height: {
-                min: 360,
-                ideal: 720,
-                max: 1080
-            },
-            width: {
-                min: 640,
-                ideal: 1280,
-                max: 1920
-            }
-        },
-        portrait: {
-            height: {
-                min: 640,
-                ideal: 1280,
-                max: 1920
-            },
-            width: {
-                min: 360,
-                ideal: 720,
-                max: 1080
-            }
-        }
-    }
+export const getOptimalVideoConstraints = async (
+  deviceId: string | null,
+  isLandscape: boolean = true
+): Promise<VideoConstraints> => {
+  const resolutions: Resolutions = {
+    landscape: {
+      height: {
+        min: 360,
+        ideal: 720,
+        max: 1080,
+      },
+      width: {
+        min: 640,
+        ideal: 1280,
+        max: 1920,
+      },
+    },
+    portrait: {
+      height: {
+        min: 640,
+        ideal: 1280,
+        max: 1920,
+      },
+      width: {
+        min: 360,
+        ideal: 720,
+        max: 1080,
+      },
+    },
+  };
   const constraints: VideoConstraints = {
     width: isLandscape ? resolutions.landscape.width : resolutions.portrait.width,
     height: isLandscape ? resolutions.landscape.height : resolutions.portrait.height,
     frameRate: { min: 15, ideal: 30, max: 60 },
-    aspectRatio: { ideal: isLandscape ? 16/9 : 9/16 },
+    aspectRatio: { ideal: isLandscape ? 16 / 9 : 9 / 16 },
     facingMode: 'environment',
-    ...(deviceId && { deviceId: { exact: deviceId } })
+    ...(deviceId && { deviceId: { exact: deviceId } }),
   };
 
   try {
@@ -416,8 +463,8 @@ export const getOptimalVideoConstraints = async (deviceId: string | null, isLand
     console.error('Error during video constraints:', error);
     return {
       frameRate: { min: 15, ideal: 30, max: 60 },
-        aspectRatio: { ideal: isLandscape ? 16/9 : 9/16 },
-        ...(deviceId && { deviceId: { exact: deviceId } })
+      aspectRatio: { ideal: isLandscape ? 16 / 9 : 9 / 16 },
+      ...(deviceId && { deviceId: { exact: deviceId } }),
     };
   }
-}; 
+};

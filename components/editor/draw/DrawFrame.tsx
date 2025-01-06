@@ -1,8 +1,8 @@
 'use client';
 
 import { useRef, useEffect } from 'react';
-import { Button } from "@/components/ui/button";
-import { Check, Loader2, Undo, Redo } from "lucide-react";
+import { Button } from '@/components/ui/button';
+import { Check, Loader2, Undo, Redo } from 'lucide-react';
 import { useVideo } from '@/context/video-context';
 import { useDraw } from '@/context/draw-context';
 import { DrawTools } from './DrawTools';
@@ -25,7 +25,7 @@ export const DrawFrame = () => {
     drawFrame,
     startDrawing,
     draw,
-    endDrawing
+    endDrawing,
   } = useDraw();
 
   useEffect(() => {
@@ -35,7 +35,7 @@ export const DrawFrame = () => {
   useEffect(() => {
     if (selectedFrame !== null && canvasRef.current) {
       drawFrame(selectedFrame, canvasRef.current);
-      
+
       // Add non-passive touch event listeners
       const canvas = canvasRef.current;
       const handleTouchStart = (e: TouchEvent) => {
@@ -64,9 +64,12 @@ export const DrawFrame = () => {
   }, [selectedFrame, currentPoints, drawFrame, draw, startDrawing, endDrawing]);
 
   useEffect(() => {
-    const drawFrame = document.getElementById('draw-frame');
-    if (drawFrame) {
-      drawFrame.setAttribute('data-has-unsaved', currentPoints.length > 0 ? "true" : "false");
+    const drawFrameElement = document.getElementById('draw-frame');
+    if (drawFrameElement) {
+      drawFrameElement.setAttribute(
+        'data-has-unsaved',
+        currentPoints.length > 0 ? 'true' : 'false'
+      );
     }
   }, [currentPoints]);
 
@@ -78,7 +81,7 @@ export const DrawFrame = () => {
         <div className="flex-1 space-y-2">
           <div className="text-xs md:text-sm font-medium text-gray-600 flex justify-between items-center">
             <span>Frame {selectedFrame.id + 1}</span>
-            <div className='flex gap-1 md:gap-2'>
+            <div className="flex gap-1 md:gap-2">
               <Button
                 type="button"
                 onClick={undoLastDrawing}
@@ -100,13 +103,15 @@ export const DrawFrame = () => {
               <DrawCopyFromPreviousButton />
             </div>
           </div>
-          <div 
+          <div
             className="relative bg-black/5 rounded-lg overflow-hidden flex items-center justify-center max-h-[320px] md:max-h-[600px] touch-none"
-            style={{ 
-              aspectRatio: selectedFrame ? `${selectedFrame.width}/${selectedFrame.height}` : '16/9',
+            style={{
+              aspectRatio: selectedFrame
+                ? `${selectedFrame.width}/${selectedFrame.height}`
+                : '16/9',
               width: '100%',
               maxHeight: 'calc(100% - 32px)',
-              touchAction: 'none'
+              touchAction: 'none',
             }}
           >
             <canvas
@@ -124,15 +129,10 @@ export const DrawFrame = () => {
       <div className="flex justify-between gap-2">
         <DrawClearButton />
         <div className="flex gap-2">
-          <Button
-            onClick={discardDrawing}
-            variant="ghost"
-            size="sm"
-          >
+          <Button onClick={discardDrawing} variant="ghost" size="sm">
             Discard
           </Button>
           <Button
-
             type="button"
             onClick={saveDrawing}
             variant="default"
@@ -140,11 +140,15 @@ export const DrawFrame = () => {
             className="gap-2"
             disabled={currentPoints.length < 1 || isSaving}
           >
-            {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+            {isSaving ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Check className="h-4 w-4" />
+            )}
             {isSaving ? 'Saving...' : 'Save'}
           </Button>
         </div>
       </div>
     </div>
   );
-}; 
+};
