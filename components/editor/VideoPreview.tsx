@@ -4,8 +4,10 @@ import { useRef, useEffect, useState } from 'react';
 import { useVideo } from '@/context/video-context';
 import { CropBox } from '@/components/editor/crop/CropBox';
 import { Crop, Scissors } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 const Video = () => {
+  const { toast } = useToast();
   const {
     getVideoBlob,
     videoFilters: {
@@ -16,6 +18,18 @@ const Video = () => {
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (error) {
+      toast({
+        title: 'Error',
+        description: error,
+        variant: 'destructive',
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [error]);
 
   useEffect(() => {
     const loadVideo = async () => {
@@ -29,7 +43,7 @@ const Video = () => {
           videoRef.current.src = url;
         }
       } catch (error) {
-        console.error('Error loading video blob:', error);
+        setError('Error loading video.' + error);
       }
     };
 

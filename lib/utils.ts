@@ -51,20 +51,28 @@ export const getCameras = async (): Promise<{
   cameras: MediaDeviceInfo[];
   deviceIds: string[];
 }> => {
-  const mediaDevices = await getMediaDevices();
-  if (!mediaDevices || !mediaDevices.enumerateDevices) {
+  try {
+    const mediaDevices = await getMediaDevices();
+    if (!mediaDevices || !mediaDevices.enumerateDevices) {
+      return {
+        cameras: [],
+        deviceIds: [],
+      };
+    }
+    await mediaDevices.getUserMedia({ video: true });
+    const devices = await mediaDevices.enumerateDevices();
+    const videoDevices = devices.filter((device) => device.kind === 'videoinput');
+    return {
+      cameras: videoDevices,
+      deviceIds: videoDevices.map((device) => device.deviceId),
+    };
+  } catch (error) {
+    console.error('Error getting camera devices.', error);
     return {
       cameras: [],
       deviceIds: [],
     };
   }
-  await mediaDevices.getUserMedia({ video: true });
-  const devices = await mediaDevices.enumerateDevices();
-  const videoDevices = devices.filter((device) => device.kind === 'videoinput');
-  return {
-    cameras: videoDevices,
-    deviceIds: videoDevices.map((device) => device.deviceId),
-  };
 };
 
 export const getSupportedMimeType = (): string => {

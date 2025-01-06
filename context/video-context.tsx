@@ -24,6 +24,7 @@ import {
   extractFramesFromVideo,
 } from '@/lib/video-frames';
 import { dbService } from '@/lib/indexed-db';
+import { useToast } from '@/hooks/use-toast';
 
 export const TARGET_FPS = 30;
 export const MAX_RECORDING_DURATION = 10;
@@ -44,6 +45,7 @@ interface VideoFilters {
 interface VideoContextType {
   mimeType: string;
   lastUpdatedAt: number;
+  isCameraAllowed: boolean;
   deviceId: string | null;
   setDeviceId: (deviceId: string | null) => void;
   cameras: MediaDeviceInfo[];
@@ -119,8 +121,10 @@ interface VideoProviderProps {
 }
 
 export const VideoProvider = ({ children }: VideoProviderProps) => {
+  const { toast } = useToast();
   const ffmpegRef = useRef<FFmpeg | null>(null);
   const mimeType = getSupportedMimeType();
+  const [isCameraAllowed, setIsCameraAllowed] = useState(true);
   const [deviceId, setDeviceId] = useState<string | null>(null);
   const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<number>(0);
@@ -171,6 +175,9 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
   const [totalFrames, setTotalFrames] = useState(0);
   const frameLoadingRef = useRef<number>(0);
 
+  // Cache for processed frames
+  const frameCache = new Map<number, { blob: Blob; hash: string }>();
+
   const getBaseVideoBlob = useCallback(async () => {
     return blobIds.baseVideo ? await dbService.getBlob(blobIds.baseVideo) : null;
   }, [blobIds.baseVideo]);
@@ -178,6 +185,18 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
   const getVideoBlob = useCallback(async () => {
     return blobIds.currentVideo ? await dbService.getBlob(blobIds.currentVideo) : null;
   }, [blobIds.currentVideo]);
+
+  useEffect(() => {
+    if (error) {
+      console.error(error);
+      toast({
+        title: 'Error',
+        description: error,
+        variant: 'destructive',
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [error]);
 
   const setBaseVideoBlob = useCallback(async (blob: Blob | null) => {
     if (blob) {
@@ -213,18 +232,27 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
 
   useEffect(() => {
     const fetchCameras = async () => {
-      const allCameras = await getCameras();
+      try {
+        const allCameras = await getCameras();
 
-      if (allCameras.deviceIds.length > 0) {
-        const newDeviceId = allCameras.deviceIds[0];
-        if (newDeviceId) {
-          setCameras(allCameras.cameras);
-          setDeviceId(newDeviceId);
+        if (allCameras.deviceIds.length > 0) {
+          const newDeviceId = allCameras.deviceIds[0];
+          if (newDeviceId) {
+            setCameras(allCameras.cameras);
+            setDeviceId(newDeviceId);
+          }
+        } else {
+          setIsCameraAllowed(false);
+          setError('Error getting camera devices.');
         }
+      } catch (error) {
+        setIsCameraAllowed(false);
+        setError('Error getting camera devices.');
       }
     };
+
     fetchCameras();
-  }, []);
+  }, [setIsCameraAllowed]);
 
   const refreshCameras = useCallback(async () => {
     try {
@@ -237,7 +265,7 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
         }
       }
     } catch (error) {
-      console.error('Error getting camera devices:', error);
+      setError('Error getting camera devices.');
     }
   }, [deviceId]);
 
@@ -287,22 +315,31 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
       canvas.width = frames[0].width;
       canvas.height = frames[0].height;
 
-      for (let i = 0; i < frames.length; i++) {
-        const frame = frames[i];
-        await drawFrameToCanvas(frame, canvas);
-        await new Promise<void>((resolve) => {
-          canvas.toBlob(
-            async (blob) => {
-              if (blob) {
-                await ffmpeg.writeFile(`frame${i}.jpg`, await fetchFile(blob));
-                resolve();
-              }
-            },
-            'image/jpeg',
-            1.0
-          );
-        });
-      }
+      // Process frames in parallel with caching
+      await Promise.all(
+        frames.map(async (frame, index) => {
+          // Create a hash of the frame's content
+          const frameHash = `${frame.id}-${frame.drawings.length}-${frame.drawings.reduce((acc, d) => acc + d.points.length, 0)}`;
+
+          // Check if we have a cached version
+          const cached = frameCache.get(frame.id);
+          if (cached && cached.hash === frameHash) {
+            // Use cached blob
+            await ffmpeg.writeFile(`frame${index}.jpg`, await fetchFile(cached.blob));
+            return;
+          }
+
+          // Process new or modified frame
+          await drawFrameToCanvas(frame, canvas);
+          const blob = await new Promise<Blob>((resolve) => {
+            canvas.toBlob((blob) => resolve(blob!), 'image/jpeg', 0.95);
+          });
+
+          // Cache the result
+          frameCache.set(frame.id, { blob, hash: frameHash });
+          await ffmpeg.writeFile(`frame${index}.jpg`, await fetchFile(blob));
+        })
+      );
 
       const filterCommands = [];
       if (videoFilters.trim.isActive) {
@@ -326,8 +363,33 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
       const data = await ffmpeg.readFile('output.gif');
       const gifBlob = new Blob([data], { type: 'image/gif' });
       handleGifUrlChange(URL.createObjectURL(gifBlob));
+
+      const cleanupFiles = async () => {
+        try {
+          await Promise.all(
+            frames.map((_, index) => ffmpeg.deleteFile(`frame${index}.jpg`).catch(() => {}))
+          );
+          await ffmpeg.deleteFile('output.gif').catch(() => {});
+        } catch (error) {
+          setError('Error cleaning up files:' + error);
+        }
+      };
+
+      await cleanupFiles();
+
+      const maxCacheSize = 50;
+      if (frameCache.size > maxCacheSize) {
+        const entriesToRemove = Array.from(frameCache.entries())
+          .sort((a, b) => a[0] - b[0])
+          .slice(0, frameCache.size - maxCacheSize);
+
+        entriesToRemove.forEach(([id]) => frameCache.delete(id));
+      }
+
+      canvas.width = 0;
+      canvas.height = 0;
     } catch (error) {
-      console.error('Error generating GIF:', error);
+      setError('Error generating GIF:' + error);
     } finally {
       setProcesses((prev) => ({ ...prev, isGeneratingGif: false }));
     }
@@ -438,7 +500,7 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
 
       return new Blob([data], { type: mimeType });
     } catch (error) {
-      console.error('Error cropping video to original size:', error);
+      setError('Error cropping video to original size:' + error);
       return blob;
     } finally {
       if (videoUrl) {
@@ -456,34 +518,57 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
 
   const handleVideoRecorded = async (blob: Blob, videoDuration: number) => {
     try {
+      console.log('Starting video processing...');
+
       // Clear existing data before processing new video
+      console.log('Clearing database...');
       await dbService.deleteDatabase();
       await dbService.init();
 
       // Process video in batches
       const processInBatches = async (inputBlob: Blob) => {
-        // First batch: Crop video to original size
-        setProcesses((prev) => ({ ...prev, isConverting: true }));
-        const croppedBlob = await cropVideoToOriginalSize(inputBlob, videoDuration);
-        setProcesses((prev) => ({ ...prev, isConverting: false }));
+        try {
+          // First batch: Crop video to original size
+          console.log('Cropping video...');
+          setProcesses((prev) => ({ ...prev, isConverting: true }));
+          const croppedBlob = await cropVideoToOriginalSize(inputBlob, videoDuration);
+          setProcesses((prev) => ({ ...prev, isConverting: false }));
 
-        // Second batch: Save blobs
-        await setBaseVideoBlob(croppedBlob);
-        await setVideoBlob(croppedBlob);
-        setIsRecording(false);
-        setDuration(videoDuration);
-        setVideoFilters((prev) => ({
-          ...prev,
-          trim: { ...prev.trim, end: videoDuration },
-        }));
+          // Second batch: Save blobs
+          console.log('Saving blobs to IndexedDB...');
+          const baseVideoId = 'baseVideo';
+          const currentVideoId = 'currentVideo';
+          await Promise.all([
+            dbService.saveBlob(baseVideoId, croppedBlob),
+            dbService.saveBlob(currentVideoId, croppedBlob),
+          ]);
 
-        // Third batch: Extract frames
-        await extractFrames(croppedBlob);
+          console.log('Setting blob IDs...');
+          setBlobIds({
+            baseVideo: baseVideoId,
+            currentVideo: currentVideoId,
+          });
+          setIsRecording(false);
+          setDuration(videoDuration);
+          setVideoFilters((prev) => ({
+            ...prev,
+            trim: { ...prev.trim, end: videoDuration },
+          }));
+
+          // Third batch: Extract frames
+          await extractFrames(croppedBlob);
+        } catch (error) {
+          setError('Error in processInBatches.' + error);
+        }
       };
 
       await processInBatches(blob);
+      console.log('Video processing completed successfully');
     } catch (error) {
-      console.error('Error handling recorded video:', error);
+      setError('Error handling recorded video.' + error);
+      // Reset state in case of error
+      setBlobIds({ baseVideo: null, currentVideo: null });
+      setIsRecording(false);
     }
   };
 
@@ -514,7 +599,7 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
           await extractFrames(croppedBlob);
         };
       } catch (error) {
-        console.error('Error handling selected file:', error);
+        setError('Error handling selected file. Details:\n' + error);
       }
     }
   };
@@ -523,107 +608,115 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
     if (!blob) {
       return;
     }
+    try {
+      const video = document.createElement('video');
+      let isCleanedUp = false;
 
-    const video = document.createElement('video');
-    let isCleanedUp = false;
+      const cleanupVideo = () => {
+        if (isCleanedUp) return;
+        isCleanedUp = true;
 
-    const cleanupVideo = () => {
-      if (isCleanedUp) return;
-      isCleanedUp = true;
-
-      if (video) {
-        video.removeEventListener('loadeddata', handleVideoLoad);
-        video.removeEventListener('error', handleVideoError);
-        video.pause();
-        video.src = '';
-        video.load();
-        URL.revokeObjectURL(video.src);
-        video.remove();
-      }
-    };
-
-    const handleVideoLoad = () => {
-      const waitForValidDuration = () => {
-        return new Promise<void>((resolve, reject) => {
-          let attempts = 0;
-          const maxAttempts = 50;
-
-          const checkDuration = () => {
-            attempts++;
-            if (
-              video.duration &&
-              isFinite(video.duration) &&
-              video.videoWidth &&
-              video.videoHeight
-            ) {
-              resolve();
-            } else if (attempts >= maxAttempts) {
-              reject(new Error('Video metadata loading timeout'));
-            } else {
-              setTimeout(checkDuration, 100);
-            }
-          };
-          checkDuration();
-        });
+        if (video) {
+          video.removeEventListener('loadeddata', handleVideoLoad);
+          video.removeEventListener('error', handleVideoError);
+          video.pause();
+          video.src = '';
+          video.load();
+          URL.revokeObjectURL(video.src);
+          video.remove();
+        }
       };
 
-      waitForValidDuration()
-        .then(async () => {
-          try {
-            setProcesses((prev) => ({ ...prev, isFrameExtracting: true }));
+      const handleVideoLoad = () => {
+        const waitForValidDuration = () => {
+          return new Promise<void>((resolve, reject) => {
+            let attempts = 0;
+            const maxAttempts = 50;
 
-            // Calculate video duration and validate
-            const duration = videoFilters.trim.isActive
-              ? videoFilters.trim.end - videoFilters.trim.start
-              : video.duration;
-
-            if (duration > MAX_RECORDING_DURATION) {
-              throw new Error(`Video duration exceeds ${MAX_RECORDING_DURATION} seconds limit`);
-            }
-
-            const frames = await extractFramesFromVideo(
-              video,
-              TARGET_FPS,
-              videoFilters.trim.isActive ? videoFilters.trim.start : 0,
-              videoFilters.trim.isActive ? videoFilters.trim.end : video.duration,
-              (current, total) => {
-                setFrameProgress({ current, total });
+            const checkDuration = () => {
+              attempts++;
+              if (
+                video.duration &&
+                isFinite(video.duration) &&
+                video.videoWidth &&
+                video.videoHeight
+              ) {
+                resolve();
+              } else if (attempts >= maxAttempts) {
+                reject(new Error('Video metadata loading timeout'));
+              } else {
+                setTimeout(checkDuration, 100);
               }
-            );
+            };
+            checkDuration();
+          });
+        };
 
-            setFrames(frames);
-          } catch (error) {
-            console.error('Error extracting frames:', error);
-            setError(error instanceof Error ? error.message : 'Failed to process video');
-          } finally {
+        waitForValidDuration()
+          .then(async () => {
+            try {
+              setProcesses((prev) => ({ ...prev, isFrameExtracting: true }));
+
+              // Calculate video duration and validate
+              const duration = videoFilters.trim.isActive
+                ? videoFilters.trim.end - videoFilters.trim.start
+                : video.duration;
+
+              if (duration > MAX_RECORDING_DURATION) {
+                throw new Error(`Video duration exceeds ${MAX_RECORDING_DURATION} seconds limit`);
+              }
+
+              const frames = await extractFramesFromVideo(
+                video,
+                TARGET_FPS,
+                videoFilters.trim.isActive ? videoFilters.trim.start : 0,
+                videoFilters.trim.isActive ? videoFilters.trim.end : video.duration,
+                (current, total) => {
+                  setFrameProgress({ current, total });
+                },
+                (error: Error | string) => {
+                  setError(error instanceof Error ? error.message : error);
+                }
+              );
+
+              setFrames(frames);
+            } catch (error) {
+              setError(
+                error instanceof Error
+                  ? error.message
+                  : 'Failed to process video while extracting frames'
+              );
+            } finally {
+              cleanupVideo();
+              setProcesses((prev) => ({ ...prev, isFrameExtracting: false }));
+            }
+          })
+          .catch((error) => {
+            setError(error instanceof Error ? error.message : 'Failed to load video');
             cleanupVideo();
             setProcesses((prev) => ({ ...prev, isFrameExtracting: false }));
-          }
-        })
-        .catch((error) => {
-          console.error('Error loading video:', error);
-          cleanupVideo();
-          setProcesses((prev) => ({ ...prev, isFrameExtracting: false }));
-          setError('Failed to load video');
-        });
-    };
+          });
+      };
 
-    const handleVideoError = (error: Event) => {
-      console.error('Error loading video:', error);
-      cleanupVideo();
-      setError('Failed to load video');
-    };
+      const handleVideoError = (error: Event) => {
+        setError('Error loading video:' + error);
+        cleanupVideo();
+        setError('Failed to load video');
+      };
 
-    video.preload = 'auto';
-    video.muted = true;
-    video.addEventListener('loadeddata', handleVideoLoad);
-    video.addEventListener('error', handleVideoError);
+      video.preload = 'auto';
+      video.muted = true;
+      video.addEventListener('loadeddata', handleVideoLoad);
+      video.addEventListener('error', handleVideoError);
 
-    const videoUrl = URL.createObjectURL(blob);
-    video.src = videoUrl;
-    video.load();
+      const videoUrl = URL.createObjectURL(blob);
+      video.src = videoUrl;
+      video.load();
 
-    return cleanupVideo;
+      return cleanupVideo;
+    } catch (error) {
+      setError('Error extracting frames:' + error);
+    }
   };
 
   const handleBack = async () => {
@@ -656,7 +749,7 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
       handleGifUrlChange(null);
       setLastUpdatedAt(Date.now());
     } catch (error) {
-      console.error('Error clearing IndexedDB:', error);
+      setError('Error clearing IndexedDB:' + error);
     }
   };
 
@@ -728,11 +821,11 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
 
         await extractFrames(croppedBlob);
       } catch (error) {
-        console.error('Error during FFmpeg operations:', error);
+        setError('Error during FFmpeg operations:' + error);
         return;
       }
     } catch (error) {
-      console.error('Error cropping video:', error);
+      setError('Error cropping video:' + error);
     } finally {
       setProcesses((prev) => ({ ...prev, isCropping: false }));
       setLastUpdatedAt(Date.now());
@@ -757,7 +850,7 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
         await extractFrames(baseBlob);
         setLastUpdatedAt(Date.now());
       } catch (error) {
-        console.error('Error resetting crop:', error);
+        setError('Error resetting crop:' + error);
       }
     }
   };
@@ -814,7 +907,7 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
           }
         }
       } catch (error) {
-        console.error('Error loading initial frames:', error);
+        setError('Error loading initial frames:' + error);
       } finally {
         setIsLoadingFrames(false);
       }
@@ -838,7 +931,7 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
         }
       }
     } catch (error) {
-      console.error('Error loading more frames:', error);
+      setError('Error loading more frames:' + error);
     }
   }, [totalFrames]);
 
@@ -846,7 +939,7 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
   useEffect(() => {
     if (frames.length > 0 && !isLoadingFrames) {
       dbService.saveFrames(frames).catch((error) => {
-        console.error('Error saving frames to IndexedDB:', error);
+        setError('Error saving frames to IndexedDB:' + error);
       });
     }
   }, [frames, isLoadingFrames]);
@@ -855,13 +948,14 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
   useEffect(() => {
     return () => {
       dbService.deleteDatabase().catch((error) => {
-        console.error('Error clearing IndexedDB on unmount:', error);
+        setError('Error clearing IndexedDB on unmount:' + error);
       });
     };
   }, []);
 
   const value = {
     mimeType,
+    isCameraAllowed,
     deviceId,
     setDeviceId,
     cameras,

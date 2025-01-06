@@ -36,7 +36,6 @@ export const DrawFrame = () => {
     if (selectedFrame !== null && canvasRef.current) {
       drawFrame(selectedFrame, canvasRef.current);
 
-      // Add non-passive touch event listeners
       const canvas = canvasRef.current;
       const handleTouchStart = (e: TouchEvent) => {
         e.preventDefault();

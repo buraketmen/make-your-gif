@@ -2,7 +2,7 @@
 import { DrawingFrame } from '@/types/draw';
 
 const DB_NAME = 'MakeYourGifDB';
-const FRAMES_PER_BATCH = 10;
+const FRAMES_PER_BATCH = 20;
 
 interface DBSchema {
   frames: DrawingFrame[];
@@ -47,8 +47,7 @@ class IndexedDBService {
 
         // Create stores if they don't exist
         if (!db.objectStoreNames.contains('frames')) {
-          const framesStore = db.createObjectStore('frames', { keyPath: 'id' });
-          framesStore.createIndex('order', 'order', { unique: false });
+          db.createObjectStore('frames', { keyPath: 'id' });
         }
         if (!db.objectStoreNames.contains('blobs')) {
           const blobStore = db.createObjectStore('blobs', { keyPath: 'id' });
@@ -78,32 +77,100 @@ class IndexedDBService {
     }
   }
 
+  private async blobFromBlobURL(blobOrUrl: Blob | string): Promise<Blob> {
+    if (blobOrUrl instanceof Blob) {
+      return blobOrUrl;
+    }
+
+    if (typeof blobOrUrl === 'string' && blobOrUrl.startsWith('blob:')) {
+      const response = await fetch(blobOrUrl);
+      return await response.blob();
+    }
+
+    throw new Error('Invalid input: must be a Blob or Blob URL');
+  }
+
+  private async convertBlobUrlToBase64(url: string): Promise<string> {
+    if (!url.startsWith('blob:')) {
+      return url;
+    }
+
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    } catch (error) {
+      console.error('Error converting Blob URL to base64:', error);
+      return url;
+    }
+  }
+
+  private async blobToBase64(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = (error) => {
+        console.error('Error converting blob to base64:', error);
+        reject(error);
+      };
+      reader.readAsDataURL(blob);
+    });
+  }
+
   async saveFrames(frames: DrawingFrame[]): Promise<void> {
     if (!this.db) await this.init();
 
-    const tx = this.db!.transaction('frames', 'readwrite');
-    const store = tx.objectStore('frames');
-
-    // Clear existing frames
     await new Promise<void>((resolve, reject) => {
+      const tx = this.db!.transaction('frames', 'readwrite');
+      const store = tx.objectStore('frames');
       const clearRequest = store.clear();
       clearRequest.onerror = () => reject(clearRequest.error);
       clearRequest.onsuccess = () => resolve();
     });
 
-    // Save frames in batches
     for (let i = 0; i < frames.length; i += FRAMES_PER_BATCH) {
       const batch = frames.slice(i, i + FRAMES_PER_BATCH);
-      await Promise.all(
-        batch.map(
-          (frame) =>
-            new Promise<void>((resolve, reject) => {
-              const request = store.put({ ...frame, order: frame.id });
-              request.onerror = () => reject(request.error);
-              request.onsuccess = () => resolve();
-            })
-        )
+
+      // Convert any Blob URLs to base64 before saving
+      const processedBatch = await Promise.all(
+        batch.map(async (frame) => ({
+          ...frame,
+          imageData: await this.convertBlobUrlToBase64(frame.imageData),
+        }))
       );
+
+      await new Promise<void>((resolve, reject) => {
+        const tx = this.db!.transaction('frames', 'readwrite');
+        const store = tx.objectStore('frames');
+
+        let error: Error | null = null;
+
+        tx.onerror = () => {
+          error = tx.error;
+        };
+
+        tx.oncomplete = () => {
+          if (error) {
+            reject(error);
+          } else {
+            resolve();
+          }
+        };
+
+        processedBatch.forEach((frame) => {
+          const request = store.put(frame);
+          request.onerror = () => {
+            error = request.error;
+          };
+        });
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 0));
     }
   }
 
@@ -129,17 +196,15 @@ class IndexedDBService {
     return new Promise((resolve, reject) => {
       const tx = this.db!.transaction('frames', 'readonly');
       const store = tx.objectStore('frames');
-      const index = store.index('order');
-
       const frames: DrawingFrame[] = [];
-      const cursorRequest = index.openCursor(IDBKeyRange.lowerBound(startIndex));
+
+      const cursorRequest = store.openCursor(IDBKeyRange.lowerBound(startIndex));
 
       cursorRequest.onsuccess = (event) => {
         const cursor = (event.target as IDBRequest).result;
 
         if (cursor && frames.length < count) {
-          const { ...frame } = cursor.value;
-          frames.push(frame);
+          frames.push(cursor.value);
           cursor.continue();
         } else {
           resolve(frames);
@@ -156,82 +221,88 @@ class IndexedDBService {
     return new Promise((resolve, reject) => {
       const tx = this.db!.transaction('frames', 'readonly');
       const store = tx.objectStore('frames');
-      const index = store.index('order');
-      const request = index.get(0);
+      const request = store.get(0);
 
       request.onerror = () => reject(request.error);
-      request.onsuccess = () => {
-        if (request.result) {
-          const { ...frame } = request.result;
-          resolve(frame);
-        } else {
-          resolve(null);
-        }
-      };
+      request.onsuccess = () => resolve(request.result || null);
     });
   }
 
-  async saveBlob(id: string, blob: Blob): Promise<void> {
+  async saveBlob(id: string, blobOrUrl: Blob | string): Promise<void> {
     if (!this.db) await this.init();
 
-    // Compress blob before saving if it's an image
-    let compressedBlob = blob;
-    if (blob.type.startsWith('image/')) {
-      try {
-        const img = new Image();
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d')!;
+    try {
+      console.log('Converting blob to base64...');
+      let base64Data: string;
 
-        await new Promise((resolve, reject) => {
-          img.onload = resolve;
-          img.onerror = reject;
-          img.src = URL.createObjectURL(blob);
-        });
-
-        canvas.width = img.width;
-        canvas.height = img.height;
-        ctx.drawImage(img, 0, 0);
-
-        URL.revokeObjectURL(img.src);
-
-        compressedBlob = await new Promise<Blob>((resolve) => {
-          canvas.toBlob((b) => resolve(b!), 'image/jpeg', 1);
-        });
-
-        canvas.width = 0;
-        canvas.height = 0;
-      } catch (error) {
-        console.warn('Failed to compress blob:', error);
+      if (blobOrUrl instanceof Blob) {
+        base64Data = await this.blobToBase64(blobOrUrl);
+      } else if (blobOrUrl.startsWith('blob:')) {
+        const response = await fetch(blobOrUrl);
+        const blob = await response.blob();
+        base64Data = await this.blobToBase64(blob);
+      } else {
+        base64Data = blobOrUrl;
       }
-    }
 
-    const tx = this.db!.transaction('blobs', 'readwrite');
-    const store = tx.objectStore('blobs');
+      console.log('Saving to IndexedDB...');
+      const tx = this.db!.transaction('blobs', 'readwrite');
+      const store = tx.objectStore('blobs');
 
-    await new Promise<void>((resolve, reject) => {
-      const request = store.put({
-        id,
-        blob: compressedBlob,
-        timestamp: Date.now(),
+      await new Promise<void>((resolve, reject) => {
+        const request = store.put({
+          id,
+          blob: base64Data,
+          timestamp: Date.now(),
+        });
+
+        request.onerror = () => {
+          console.error('Error saving blob:', request.error);
+          reject(request.error);
+        };
+
+        request.onsuccess = () => {
+          console.log('Blob saved successfully');
+          resolve();
+        };
       });
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve();
-    });
 
-    await this.cleanupOldBlobs();
+      await this.cleanupOldBlobs();
+    } catch (error) {
+      console.error('Error in saveBlob:', error);
+      throw error;
+    }
   }
 
   async getBlob(id: string): Promise<Blob | null> {
     if (!this.db) await this.init();
 
-    return new Promise((resolve, reject) => {
-      const tx = this.db!.transaction('blobs', 'readonly');
-      const store = tx.objectStore('blobs');
-      const request = store.get(id);
+    try {
+      const data = await new Promise<{ blob: string } | undefined>((resolve, reject) => {
+        const tx = this.db!.transaction('blobs', 'readonly');
+        const store = tx.objectStore('blobs');
+        const request = store.get(id);
 
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve(request.result?.blob || null);
-    });
+        request.onerror = () => {
+          console.error('Error getting blob:', request.error);
+          reject(request.error);
+        };
+        request.onsuccess = () => resolve(request.result);
+      });
+
+      if (!data?.blob) return null;
+
+      // If it's a base64 string, convert it back to Blob
+      if (typeof data.blob === 'string' && data.blob.startsWith('data:')) {
+        const response = await fetch(data.blob);
+        return await response.blob();
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Error in getBlob:', error);
+      throw error;
+    }
   }
 
   private async cleanupOldBlobs(): Promise<void> {

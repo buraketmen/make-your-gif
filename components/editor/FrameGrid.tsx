@@ -1,10 +1,10 @@
 'use client';
 
-import { memo, useEffect, useRef, forwardRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { DrawingFrame } from '@/types/draw';
 import { drawFrameToCanvas } from '@/lib/video-frames';
 import { useVideo } from '@/context/video-context';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useInView } from 'framer-motion';
 import { Spinner, SpinnerText } from '@/components/Spinner';
 import { Settings2Icon } from 'lucide-react';
 import {
@@ -41,44 +41,60 @@ const FrameSpinner = () => {
   );
 };
 
-const Frame = memo(
-  forwardRef<HTMLDivElement, FrameProps>(({ frame, onFrameSelect }, ref) => {
+const Frame = memo<FrameProps>(
+  ({ frame, onFrameSelect }) => {
     const { selectedFrame } = useVideo();
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const frameRef = useRef<HTMLDivElement>(null);
+    const isInView = useInView(frameRef, {
+      margin: '50px',
+      once: true,
+      amount: 0.3,
+    });
 
     useEffect(() => {
-      if (canvasRef.current) {
-        drawFrameToCanvas(frame, canvasRef.current);
+      if (canvasRef.current && isInView) {
+        const canvas = canvasRef.current;
+        const scale = 0.4;
+        canvas.width = frame.width * scale;
+        canvas.height = frame.height * scale;
+
+        const ctx = canvas.getContext('2d', {
+          willReadFrequently: true,
+          alpha: false,
+        });
+        if (!ctx) return;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        requestAnimationFrame(() => {
+          drawFrameToCanvas(frame, canvas);
+        });
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [frame.imageData, frame.drawings]);
+    }, [isInView, frame.id]);
 
     const isSelected = selectedFrame?.id === frame.id;
     const hasDrawings = frame.drawings.length > 0;
 
+    if (!isInView) {
+      return <div ref={frameRef} className="w-full h-full" aria-hidden="true" />;
+    }
+
     return (
-      <motion.div
-        ref={ref}
-        layout
-        initial={{ opacity: 0, scale: 0.8 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.8 }}
-        transition={{ duration: 0.2 }}
-        className="relative cursor-pointer rounded-[4px] overflow-hidden"
+      <div
+        ref={frameRef}
+        className="relative cursor-pointer rounded-[4px] overflow-hidden w-full h-full"
         onClick={() => onFrameSelect(frame)}
       >
-        <canvas
-          ref={canvasRef}
-          className="w-full h-auto rounded-[4px]"
-          style={{ aspectRatio: frame.width / frame.height }}
-        />
+        <canvas ref={canvasRef} className="w-full h-full rounded-[4px] object-cover" />
         <div
           className={`absolute inset-0 rounded-[4px] transition-colors duration-200 ${
             isSelected ? 'bg-rose-500/50' : 'bg-black/10 hover:bg-black/0'
           }`}
         />
         {hasDrawings && (
-          <div className="absolute top-0.5 left-0.5 ">
+          <div className="absolute top-0.5 left-0.5">
             <div className="bg-black/50 text-white px-1 py-1 rounded-sm flex items-center gap-1">
               <Settings2Icon className="w-3 h-3 text-gray-200" />
               <span className="text-xs text-gray-200">Edited</span>
@@ -88,13 +104,12 @@ const Frame = memo(
         <div className="absolute bottom-0 right-0 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded-tl-[4px] rounded-br-[4px]">
           {frame.id + 1}
         </div>
-      </motion.div>
+      </div>
     );
-  }),
+  },
   (prevProps, nextProps) => {
     return (
       prevProps.frame.id === nextProps.frame.id &&
-      prevProps.frame.imageData === nextProps.frame.imageData &&
       prevProps.frame.drawings === nextProps.frame.drawings
     );
   }
@@ -193,23 +208,11 @@ const FrameGrid = () => {
         </AlertDialogContent>
       </AlertDialog>
 
-      <motion.div
-        ref={gridRef}
-        layout
-        className={frameGridClass}
-        transition={{
-          layout: { duration: 0.2 },
-          type: 'spring',
-          stiffness: 200,
-          damping: 25,
-        }}
-      >
-        <AnimatePresence mode="popLayout">
-          {frames.map((frame, index) => (
-            <Frame key={index} frame={frame} onFrameSelect={handleFrameSelect} />
-          ))}
-        </AnimatePresence>
-      </motion.div>
+      <div ref={gridRef} className={frameGridClass}>
+        {frames.map((frame) => (
+          <Frame key={frame.id} frame={frame} onFrameSelect={handleFrameSelect} />
+        ))}
+      </div>
     </>
   );
 };

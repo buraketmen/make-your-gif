@@ -1,9 +1,10 @@
 'use client';
 
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { Drawing, DrawingFrame, PenSize, DrawingTool, DRAWING_TOOLS } from '@/types/draw';
 import { drawPath } from '@/lib/video-frames';
 import { useVideo } from './video-context';
+import { useToast } from '@/hooks/use-toast';
 
 interface DrawContextType {
   isDrawing: boolean;
@@ -54,8 +55,9 @@ interface DrawProviderProps {
 const DrawContext = createContext<DrawContextType | null>(null);
 
 export const DrawProvider = ({ children }: DrawProviderProps) => {
+  const { toast } = useToast();
   const { frames, setFrames, selectedFrame, setSelectedFrame } = useVideo();
-
+  const [error, setError] = useState<string | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [currentColor, setCurrentColor] = useState('#FF0000');
@@ -66,6 +68,17 @@ export const DrawProvider = ({ children }: DrawProviderProps) => {
   const [currentTool, setCurrentTool] = useState<DrawingTool>('pen');
   const [startPoint, setStartPoint] = useState<{ x: number; y: number } | null>(null);
 
+  useEffect(() => {
+    if (error) {
+      toast({
+        title: 'Error',
+        description: error,
+        variant: 'destructive',
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [error]);
+
   const drawShape = useCallback(
     (
       ctx: CanvasRenderingContext2D,
@@ -73,34 +86,38 @@ export const DrawProvider = ({ children }: DrawProviderProps) => {
       start: { x: number; y: number },
       end: { x: number; y: number }
     ) => {
-      if (!ctx || !shape || !start || !end) return;
+      try {
+        if (!ctx || !shape || !start || !end) return;
 
-      const path = new Path2D();
+        const path = new Path2D();
 
-      Object.assign(ctx, {
-        strokeStyle: currentColor,
-        lineWidth: penSize,
-        lineCap: 'round',
-        lineJoin: 'round',
-      });
+        Object.assign(ctx, {
+          strokeStyle: currentColor,
+          lineWidth: penSize,
+          lineCap: 'round',
+          lineJoin: 'round',
+        });
 
-      switch (shape) {
-        case DRAWING_TOOLS.LINE.id:
-          path.moveTo(start.x, start.y);
-          path.lineTo(end.x, end.y);
-          break;
-        case DRAWING_TOOLS.RECTANGLE.id:
-          path.rect(start.x, start.y, end.x - start.x, end.y - start.y);
-          break;
-        case DRAWING_TOOLS.CIRCLE.id:
-          const radius = Math.hypot(end.x - start.x, end.y - start.y);
-          path.arc(start.x, start.y, radius, 0, 2 * Math.PI);
-          break;
-        default:
-          return;
+        switch (shape) {
+          case DRAWING_TOOLS.LINE.id:
+            path.moveTo(start.x, start.y);
+            path.lineTo(end.x, end.y);
+            break;
+          case DRAWING_TOOLS.RECTANGLE.id:
+            path.rect(start.x, start.y, end.x - start.x, end.y - start.y);
+            break;
+          case DRAWING_TOOLS.CIRCLE.id:
+            const radius = Math.hypot(end.x - start.x, end.y - start.y);
+            path.arc(start.x, start.y, radius, 0, 2 * Math.PI);
+            break;
+          default:
+            return;
+        }
+
+        ctx.stroke(path);
+      } catch (error) {
+        setError('Error drawing shape.' + error);
       }
-
-      ctx.stroke(path);
     },
     [currentColor, penSize]
   );
@@ -110,20 +127,25 @@ export const DrawProvider = ({ children }: DrawProviderProps) => {
       e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>,
       canvas: HTMLCanvasElement
     ) => {
-      if (!canvas) return { x: 0, y: 0 };
+      try {
+        if (!canvas) return { x: 0, y: 0 };
 
-      const rect = canvas.getBoundingClientRect();
-      const scaleX = canvas.width / rect.width;
-      const scaleY = canvas.height / rect.height;
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
 
-      const { left, top } = rect;
-      const { clientX = 0, clientY = 0 } =
-        'touches' in e ? e.touches[0] || e.changedTouches[0] || {} : e;
+        const { left, top } = rect;
+        const { clientX = 0, clientY = 0 } =
+          'touches' in e ? e.touches[0] || e.changedTouches[0] || {} : e;
 
-      return {
-        x: (clientX - left) * scaleX,
-        y: (clientY - top) * scaleY,
-      };
+        return {
+          x: (clientX - left) * scaleX,
+          y: (clientY - top) * scaleY,
+        };
+      } catch (error) {
+        setError('Error getting coordinates.' + error);
+        return { x: 0, y: 0 };
+      }
     },
     []
   );
@@ -135,48 +157,61 @@ export const DrawProvider = ({ children }: DrawProviderProps) => {
   }, []);
 
   const undoLastDrawing = useCallback(() => {
-    if (drawingHistory.length === 0) return;
+    try {
+      if (drawingHistory.length === 0) return;
 
-    const newHistory = [...drawingHistory];
-    const lastDrawing = newHistory.pop();
-    setDrawingHistory(newHistory);
+      const newHistory = [...drawingHistory];
+      const lastDrawing = newHistory.pop();
+      setDrawingHistory(newHistory);
 
-    if (lastDrawing) {
-      setRedoHistory((prev) => [...prev, lastDrawing]);
-      setCurrentPoints((prev) => prev.slice(0, -1));
+      if (lastDrawing) {
+        setRedoHistory((prev) => [...prev, lastDrawing]);
+        setCurrentPoints((prev) => prev.slice(0, -1));
+      }
+    } catch (error) {
+      setError('Error undoing last drawing.' + error);
     }
   }, [drawingHistory]);
 
   const redoLastDrawing = useCallback(() => {
-    if (redoHistory.length === 0) return;
+    try {
+      if (redoHistory.length === 0) return;
 
-    const newRedoHistory = [...redoHistory];
-    const nextDrawing = newRedoHistory.pop();
-    setRedoHistory(newRedoHistory);
+      const newRedoHistory = [...redoHistory];
+      const nextDrawing = newRedoHistory.pop();
+      setRedoHistory(newRedoHistory);
 
-    if (nextDrawing) {
-      setDrawingHistory((prev) => [...prev, nextDrawing]);
-      setCurrentPoints((prev) => [...prev, ...nextDrawing]);
+      if (nextDrawing) {
+        setDrawingHistory((prev) => [...prev, nextDrawing]);
+        setCurrentPoints((prev) => [...prev, ...nextDrawing]);
+      }
+    } catch (error) {
+      setError('Error redoing last drawing.' + error);
     }
   }, [redoHistory]);
 
   const saveDrawing = useCallback(() => {
-    if (selectedFrame === null || currentPoints.length === 0) return;
-    setIsSaving(true);
-    setFrames((prev: DrawingFrame[]) => {
-      const newFrames = [...prev];
-      const frameIndex = newFrames.findIndex((frame) => frame.id === selectedFrame.id);
-      if (frameIndex !== -1) {
-        newFrames[frameIndex] = {
-          ...selectedFrame,
-          drawings: [...selectedFrame.drawings, ...currentPoints],
-        };
-      }
-      return newFrames;
-    });
-    setIsSaving(false);
-    setCurrentPoints([]);
-    setSelectedFrame(null);
+    try {
+      if (selectedFrame === null || currentPoints.length === 0) return;
+      setIsSaving(true);
+      setFrames((prev: DrawingFrame[]) => {
+        const newFrames = [...prev];
+        const frameIndex = newFrames.findIndex((frame) => frame.id === selectedFrame.id);
+        if (frameIndex !== -1) {
+          newFrames[frameIndex] = {
+            ...selectedFrame,
+            drawings: [...selectedFrame.drawings, ...currentPoints],
+          };
+        }
+        return newFrames;
+      });
+      setIsSaving(false);
+      setCurrentPoints([]);
+      setSelectedFrame(null);
+    } catch (error) {
+      setError('Error saving drawing.' + error);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFrame, currentPoints, setFrames, setSelectedFrame]);
 
   const discardDrawing = useCallback(() => {
@@ -187,18 +222,23 @@ export const DrawProvider = ({ children }: DrawProviderProps) => {
   const clearDrawings = useCallback(() => {
     if (selectedFrame === null) return;
 
-    setFrames((prev: DrawingFrame[]) => {
-      const newFrames = [...prev];
-      const frameIndex = newFrames.findIndex((frame) => frame.id === selectedFrame.id);
-      if (frameIndex !== -1) {
-        newFrames[frameIndex] = {
-          ...selectedFrame,
-          drawings: [],
-        };
-      }
-      return newFrames;
-    });
-    discardDrawing();
+    try {
+      setFrames((prev: DrawingFrame[]) => {
+        const newFrames = [...prev];
+        const frameIndex = newFrames.findIndex((frame) => frame.id === selectedFrame.id);
+        if (frameIndex !== -1) {
+          newFrames[frameIndex] = {
+            ...selectedFrame,
+            drawings: [],
+          };
+        }
+        return newFrames;
+      });
+      discardDrawing();
+    } catch (error) {
+      setError('Error clearing drawings.' + error);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFrame, setFrames, discardDrawing]);
 
   const drawFrame = useCallback(
@@ -251,7 +291,6 @@ export const DrawProvider = ({ children }: DrawProviderProps) => {
             }
           }
 
-          // Draw current frame's drawings
           if (frame.drawings?.length > 0) {
             frame.drawings.forEach((drawing) => {
               if (drawing?.points?.length >= 2) {
@@ -280,7 +319,7 @@ export const DrawProvider = ({ children }: DrawProviderProps) => {
             });
           }
         } catch (error) {
-          console.error('Error rendering frame:', error);
+          setError('Error rendering frame.' + error);
         }
       };
 
@@ -290,22 +329,26 @@ export const DrawProvider = ({ children }: DrawProviderProps) => {
   );
 
   const copyFromPrevious = useCallback(() => {
-    if (!selectedFrame || frames.length === 0) return;
+    try {
+      if (!selectedFrame || frames.length === 0) return;
 
-    const currentIndex = frames.findIndex((f) => f.id === selectedFrame.id);
-    if (currentIndex <= 0) return;
+      const currentIndex = frames.findIndex((f) => f.id === selectedFrame.id);
+      if (currentIndex <= 0) return;
 
-    const previousFrame = frames[currentIndex - 1];
-    if (!previousFrame.drawings.length) return;
+      const previousFrame = frames[currentIndex - 1];
+      if (!previousFrame.drawings.length) return;
 
-    const newHistory = [...drawingHistory];
-    previousFrame.drawings.forEach((drawing) => {
-      newHistory.push([drawing]);
-      setCurrentPoints((prev) => [...prev, drawing]);
-    });
+      const newHistory = [...drawingHistory];
+      previousFrame.drawings.forEach((drawing) => {
+        newHistory.push([drawing]);
+        setCurrentPoints((prev) => [...prev, drawing]);
+      });
 
-    setDrawingHistory(newHistory);
-    setRedoHistory([]);
+      setDrawingHistory(newHistory);
+      setRedoHistory([]);
+    } catch (error) {
+      setError('Error copying from previous frame.' + error);
+    }
   }, [frames, selectedFrame, drawingHistory]);
 
   const startDrawing = useCallback(
@@ -313,26 +356,30 @@ export const DrawProvider = ({ children }: DrawProviderProps) => {
       e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>,
       canvas: HTMLCanvasElement
     ) => {
-      if (!canvas?.getContext('2d') || selectedFrame === null) return;
-      const coords = getCoordinates(e, canvas);
-      if (!coords || (coords.x === 0 && coords.y === 0)) return;
+      try {
+        if (!canvas?.getContext('2d') || selectedFrame === null) return;
+        const coords = getCoordinates(e, canvas);
+        if (!coords || (coords.x === 0 && coords.y === 0)) return;
 
-      requestAnimationFrame(() => {
-        setRedoHistory([]);
-        setIsDrawing(true);
-        setStartPoint(coords);
+        requestAnimationFrame(() => {
+          setRedoHistory([]);
+          setIsDrawing(true);
+          setStartPoint(coords);
 
-        if (currentTool === DRAWING_TOOLS.PEN.id) {
-          const newDrawing = {
-            points: [coords],
-            color: currentColor,
-            penSize,
-            tool: currentTool,
-          };
+          if (currentTool === DRAWING_TOOLS.PEN.id) {
+            const newDrawing = {
+              points: [coords],
+              color: currentColor,
+              penSize,
+              tool: currentTool,
+            };
 
-          setCurrentPoints((prev) => [...prev, newDrawing]);
-        }
-      });
+            setCurrentPoints((prev) => [...prev, newDrawing]);
+          }
+        });
+      } catch (error) {
+        setError('Error starting drawing.' + error);
+      }
     },
     [selectedFrame, currentTool, currentColor, penSize, getCoordinates]
   );
@@ -342,74 +389,76 @@ export const DrawProvider = ({ children }: DrawProviderProps) => {
       e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>,
       canvas: HTMLCanvasElement
     ) => {
-      if (!isDrawing || !canvas || selectedFrame === null) return;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-      const coords = getCoordinates(e, canvas);
-      if (!coords || (coords.x === 0 && coords.y === 0)) return;
+      try {
+        if (!isDrawing || !canvas || selectedFrame === null) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        const coords = getCoordinates(e, canvas);
+        if (!coords || (coords.x === 0 && coords.y === 0)) return;
 
-      if (currentTool === DRAWING_TOOLS.PEN.id) {
-        setCurrentPoints((prev) => {
-          const newPoints = [...prev];
-          const currentDrawing = newPoints[newPoints.length - 1];
+        if (currentTool === DRAWING_TOOLS.PEN.id) {
+          setCurrentPoints((prev) => {
+            const newPoints = [...prev];
+            const currentDrawing = newPoints[newPoints.length - 1];
 
-          if (!currentDrawing?.points) return prev;
+            if (!currentDrawing?.points) return prev;
 
-          currentDrawing.points = [...currentDrawing.points, coords];
-          return newPoints;
-        });
-
-        const contextSettings = {
-          strokeStyle: currentColor,
-          lineWidth: penSize,
-          lineCap: 'round',
-          lineJoin: 'round',
-        };
-        Object.assign(ctx, contextSettings);
-
-        const currentDrawing = currentPoints[currentPoints.length - 1];
-        const points = currentDrawing?.points;
-
-        if (points?.length >= 2) {
-          const lastPoint = points[points.length - 2];
-          ctx.beginPath();
-          ctx.moveTo(lastPoint.x, lastPoint.y);
-          ctx.lineTo(coords.x, coords.y);
-          ctx.stroke();
-        }
-        return;
-      }
-
-      if (startPoint) {
-        let tempCanvas = document.getElementById('temp-canvas') as HTMLCanvasElement;
-
-        // Create temp canvas only if needed
-        if (!tempCanvas) {
-          tempCanvas = document.createElement('canvas');
-          tempCanvas.id = 'temp-canvas';
-          Object.assign(tempCanvas, {
-            width: canvas.width,
-            height: canvas.height,
-            style: { display: 'none' },
+            currentDrawing.points = [...currentDrawing.points, coords];
+            return newPoints;
           });
-          document.body.appendChild(tempCanvas);
+
+          const contextSettings = {
+            strokeStyle: currentColor,
+            lineWidth: penSize,
+            lineCap: 'round',
+            lineJoin: 'round',
+          };
+          Object.assign(ctx, contextSettings);
+
+          const currentDrawing = currentPoints[currentPoints.length - 1];
+          const points = currentDrawing?.points;
+
+          if (points?.length >= 2) {
+            const lastPoint = points[points.length - 2];
+            ctx.beginPath();
+            ctx.moveTo(lastPoint.x, lastPoint.y);
+            ctx.lineTo(coords.x, coords.y);
+            ctx.stroke();
+          }
+          return;
         }
 
-        const tempCtx = tempCanvas.getContext('2d');
-        if (!tempCtx) return;
+        if (startPoint) {
+          let tempCanvas = document.getElementById('temp-canvas') as HTMLCanvasElement;
 
-        // Copy base canvas content only once
-        if (!tempCanvas.hasAttribute('data-copied')) {
-          tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
-          tempCtx.drawImage(canvas, 0, 0);
-          tempCanvas.setAttribute('data-copied', 'true');
+          if (!tempCanvas) {
+            tempCanvas = document.createElement('canvas');
+            tempCanvas.id = 'temp-canvas';
+            Object.assign(tempCanvas, {
+              width: canvas.width,
+              height: canvas.height,
+              style: { display: 'none' },
+            });
+            document.body.appendChild(tempCanvas);
+          }
+
+          const tempCtx = tempCanvas.getContext('2d');
+          if (!tempCtx) return;
+
+          if (!tempCanvas.hasAttribute('data-copied')) {
+            tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
+            tempCtx.drawImage(canvas, 0, 0);
+            tempCanvas.setAttribute('data-copied', 'true');
+          }
+
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(tempCanvas, 0, 0);
+          drawShape(ctx, currentTool, startPoint, coords);
         }
-
-        // Redraw with shape
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(tempCanvas, 0, 0);
-        drawShape(ctx, currentTool, startPoint, coords);
+      } catch (error) {
+        setError('Error drawing.' + error);
       }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     },
     [
       isDrawing,
@@ -429,38 +478,42 @@ export const DrawProvider = ({ children }: DrawProviderProps) => {
       e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>,
       canvas: HTMLCanvasElement
     ) => {
-      if (!isDrawing || !canvas || selectedFrame === null || !startPoint) return;
+      try {
+        if (!isDrawing || !canvas || selectedFrame === null || !startPoint) return;
 
-      const coords = getCoordinates(e, canvas);
-      if (!coords || (coords.x === 0 && coords.y === 0)) return;
+        const coords = getCoordinates(e, canvas);
+        if (!coords || (coords.x === 0 && coords.y === 0)) return;
 
-      requestAnimationFrame(() => {
-        if (currentTool !== DRAWING_TOOLS.PEN.id) {
-          const shapeDrawing = {
-            points: [startPoint, coords],
-            color: currentColor,
-            penSize,
-            tool: currentTool,
-          };
+        requestAnimationFrame(() => {
+          if (currentTool !== DRAWING_TOOLS.PEN.id) {
+            const shapeDrawing = {
+              points: [startPoint, coords],
+              color: currentColor,
+              penSize,
+              tool: currentTool,
+            };
 
-          setCurrentPoints((prev) => [...prev, shapeDrawing]);
-          setDrawingHistory((prev) => [...prev, [shapeDrawing]]);
-        } else if (currentPoints.length > 0) {
-          const lastDrawing = currentPoints[currentPoints.length - 1];
-          if (lastDrawing?.points?.length >= 2) {
-            setDrawingHistory((prev) => [...prev, [lastDrawing]]);
+            setCurrentPoints((prev) => [...prev, shapeDrawing]);
+            setDrawingHistory((prev) => [...prev, [shapeDrawing]]);
+          } else if (currentPoints.length > 0) {
+            const lastDrawing = currentPoints[currentPoints.length - 1];
+            if (lastDrawing?.points?.length >= 2) {
+              setDrawingHistory((prev) => [...prev, [lastDrawing]]);
+            }
           }
-        }
 
-        const tempCanvas = document.getElementById('temp-canvas');
-        if (tempCanvas) {
-          tempCanvas.removeAttribute('data-copied');
-          tempCanvas.remove();
-        }
+          const tempCanvas = document.getElementById('temp-canvas');
+          if (tempCanvas) {
+            tempCanvas.removeAttribute('data-copied');
+            tempCanvas.remove();
+          }
 
-        setIsDrawing(false);
-        setStartPoint(null);
-      });
+          setIsDrawing(false);
+          setStartPoint(null);
+        });
+      } catch (error) {
+        setError('Error ending drawing.' + error);
+      }
     },
     [
       isDrawing,

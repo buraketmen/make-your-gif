@@ -1,7 +1,9 @@
 'use client';
 
-import { Button } from "@/components/ui/button";
+import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
 import { Share } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
 interface ShareGifButtonProps {
   gifUrl: string | null;
@@ -9,6 +11,20 @@ interface ShareGifButtonProps {
 }
 
 export const ShareGifButton = ({ gifUrl, disabled }: ShareGifButtonProps) => {
+  const { toast } = useToast();
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (error) {
+      toast({
+        title: 'Error',
+        description: error,
+        variant: 'destructive',
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [error]);
+
   const handleShare = async () => {
     if (!gifUrl) return;
 
@@ -23,7 +39,6 @@ export const ShareGifButton = ({ gifUrl, disabled }: ShareGifButtonProps) => {
           title: 'Share GIF',
         });
       } else {
-        // Fallback for browsers that don't support Web Share API
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -34,7 +49,7 @@ export const ShareGifButton = ({ gifUrl, disabled }: ShareGifButtonProps) => {
         URL.revokeObjectURL(url);
       }
     } catch (error) {
-      console.error('Error sharing:', error);
+      setError('Error while sharing GIF.' + error);
     }
   };
 
@@ -50,4 +65,4 @@ export const ShareGifButton = ({ gifUrl, disabled }: ShareGifButtonProps) => {
       <span>Share</span>
     </Button>
   );
-}; 
+};

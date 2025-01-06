@@ -6,7 +6,6 @@ interface VideoFrameOptions {
   offsets?: number[];
   startTime?: number;
   endTime?: number;
-  count?: number;
   width?: number;
   height?: number;
   quality?: number;
@@ -209,7 +208,8 @@ export const extractFramesFromVideo = (
   fps: number = 30,
   startTime: number,
   endTime: number,
-  onProgress?: (current: number, total: number) => void
+  onProgress?: (current: number, total: number) => void,
+  onError?: (error: Error | string) => void
 ): Promise<DrawingFrame[]> => {
   let canvas: HTMLCanvasElement | null = null;
   let ctx: CanvasRenderingContext2D | null = null;
@@ -224,39 +224,50 @@ export const extractFramesFromVideo = (
       });
 
       if (!ctx) {
-        throw new Error('Failed to create canvas context');
+        if (onError) {
+          onError('Failed to create canvas context.');
+        }
+        return reject();
       }
 
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
 
-      const videoFrames = await extractVideoFrames({
-        video,
-        format: 'image/jpeg',
-        quality: 1.0,
-        startTime,
-        endTime,
-        fps,
-        onProgress,
-      });
+      const videoFrames = await extractVideoFrames(
+        {
+          video,
+          format: 'image/jpeg',
+          quality: 0.95,
+          startTime,
+          endTime,
+          fps,
+          onProgress,
+        },
+        onError
+      );
 
       const drawingFrames = convertToDrawingFrames(videoFrames);
 
       if (drawingFrames.length > 0) {
         try {
-          const dimensions = await getImageDimensions(drawingFrames[0].imageData);
+          const dimensions = await getImageDimensions(drawingFrames[0].imageData, onError);
           drawingFrames.forEach((frame) => {
             frame.width = dimensions.width;
             frame.height = dimensions.height;
           });
         } catch (error) {
-          console.warn('Failed to get frame dimensions:', error);
+          console.error('Failed to get frame dimensions.', error);
+          if (onError) {
+            onError('Failed to get frame dimensions.');
+          }
         }
       }
 
       resolve(drawingFrames);
     } catch (error) {
-      console.error('Error during frame extraction:', error);
+      if (onError) {
+        onError(error as Error);
+      }
       reject(error);
     } finally {
       if (canvas) {
@@ -272,7 +283,8 @@ export const extractFramesFromVideo = (
 
 const processFrame = async (
   sourceCanvas: HTMLCanvasElement,
-  frameData: { width: number; height: number; format: string; quality: number }
+  frameData: { width: number; height: number; format: string; quality: number },
+  onError?: (error: Error | string) => void
 ): Promise<string> => {
   try {
     return new Promise((resolve) => {
@@ -282,10 +294,7 @@ const processFrame = async (
             const reader = new FileReader();
             reader.onloadend = () => {
               const base64data = reader.result as string;
-              const dataUrl = base64data.startsWith('data:')
-                ? base64data
-                : `data:${frameData.format};base64,${base64data.split(',')[1]}`;
-              resolve(dataUrl);
+              resolve(base64data);
             };
             reader.readAsDataURL(blob);
           } else {
@@ -297,20 +306,22 @@ const processFrame = async (
       );
     });
   } catch (error) {
-    console.error('Error processing frame:', error);
+    if (onError) {
+      onError(error as Error);
+    }
     return '';
   }
 };
 
 export const extractVideoFrames = async (
-  options: VideoFrameOptions
+  options: VideoFrameOptions,
+  onError?: (error: Error | string) => void
 ): Promise<VideoFrameResult[]> => {
   const defaultOptions = {
     format: 'image/jpeg',
+    quality: 0.95,
     offsets: [],
     startTime: 0,
-    count: 1,
-    quality: 1.0,
     fps: 30,
   };
   const settings = { ...defaultOptions, ...options };
@@ -336,9 +347,8 @@ export const extractVideoFrames = async (
     settings.endTime = Math.max(settings.startTime, Math.min(settings.endTime, video.duration));
 
     const totalFrames = Math.floor((settings.endTime - settings.startTime) * fps);
-    settings.count = totalFrames;
 
-    const interval = (settings.endTime - settings.startTime) / (settings.count - 1);
+    const interval = (settings.endTime - settings.startTime) / (totalFrames - 1);
 
     const videoDimensionRatio = video.videoWidth / video.videoHeight;
     if (!settings.width && !settings.height) {
@@ -366,7 +376,7 @@ export const extractVideoFrames = async (
       quality: settings.quality,
     };
 
-    const tasks = Array.from({ length: settings.count }, (_, i) => {
+    const tasks = Array.from({ length: totalFrames }, (_, i) => {
       const targetTime = settings.startTime! + i * interval;
       return { index: i, targetTime };
     });
@@ -386,7 +396,7 @@ export const extractVideoFrames = async (
       if (!ctx || !canvas) continue;
 
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const image = await processFrame(canvas, frameData);
+      const image = await processFrame(canvas, frameData, onError);
 
       frames[index] = {
         offset: targetTime,
@@ -394,16 +404,15 @@ export const extractVideoFrames = async (
       };
 
       if (settings.onProgress) {
-        settings.onProgress(index + 1, settings.count);
+        settings.onProgress(index + 1, totalFrames);
       }
-
-      // Small delay to prevent browser from freezing
-      await new Promise((resolve) => setTimeout(resolve, 5));
     }
 
     return frames;
   } catch (error) {
-    console.error('Error extracting frames:', error);
+    if (onError) {
+      onError(error as Error);
+    }
     return [];
   } finally {
     if (canvas) {
@@ -430,7 +439,10 @@ export const convertToDrawingFrames = (
   }));
 };
 
-const getImageDimensions = (imageData: string): Promise<{ width: number; height: number }> => {
+const getImageDimensions = (
+  imageData: string,
+  onError?: (error: Error | string) => void
+): Promise<{ width: number; height: number }> => {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
@@ -443,13 +455,19 @@ const getImageDimensions = (imageData: string): Promise<{ width: number; height:
     };
 
     img.onerror = (error) => {
-      console.error('Error loading image:', error);
-      console.log('Image data:', imageData.substring(0, 100) + '...');
-      reject(new Error('Failed to load frame image'));
+      console.error('Failed to load frame image.', error);
+      if (onError) {
+        onError('Failed to load frame image.');
+      }
+      reject();
     };
 
     if (!imageData.startsWith('data:')) {
-      reject(new Error('Invalid image data format'));
+      console.error('Invalid image data format.');
+      if (onError) {
+        onError('Invalid image data format.');
+      }
+      reject();
       return;
     }
 

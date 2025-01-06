@@ -9,9 +9,12 @@ import { RecordingIndicator } from './RecordingIndicator';
 import { MAX_RECORDING_DURATION, useVideo } from '@/context/video-context';
 import { Spinner, SpinnerText } from '@/components/Spinner';
 import { getMediaDevices, getOptimalVideoConstraints } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 
 export const VideoRecorder = ({ device }: { device: string | null }) => {
+  const { toast } = useToast();
   const {
+    isCameraAllowed,
     isRecording,
     isMirrored,
     mimeType,
@@ -21,7 +24,7 @@ export const VideoRecorder = ({ device }: { device: string | null }) => {
     handleStopRecording,
     handleVideoRecorded,
   } = useVideo();
-
+  const [error, setError] = useState<string | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [permissionError, setPermissionError] = useState<string | null>(null);
@@ -32,6 +35,17 @@ export const VideoRecorder = ({ device }: { device: string | null }) => {
   const controlsTimeoutRef = useRef<NodeJS.Timeout>();
   const [recordingTime, setRecordingTime] = useState(0);
   const recordingTimerRef = useRef<NodeJS.Timeout>();
+
+  useEffect(() => {
+    if (error) {
+      toast({
+        title: 'Error',
+        description: error,
+        variant: 'destructive',
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [error]);
 
   const cleanupCamera = useCallback(() => {
     if (videoRef.current?.srcObject) {
@@ -50,6 +64,14 @@ export const VideoRecorder = ({ device }: { device: string | null }) => {
       setStream(null);
     }
   }, [stream]);
+
+  useEffect(() => {
+    if (!isCameraAllowed) {
+      setPermissionError(
+        'Camera access was denied. Please check your browser permissions and make sure your camera is connected.'
+      );
+    }
+  }, [isCameraAllowed]);
 
   const initializeCamera = useCallback(async () => {
     try {
@@ -79,10 +101,8 @@ export const VideoRecorder = ({ device }: { device: string | null }) => {
         });
       }
     } catch (error: unknown) {
-      console.error('Error accessing camera:', error);
       let errorMessage =
         'Camera access was denied. Please check your browser permissions and make sure your camera is connected.';
-
       if (error instanceof Error) {
         switch (error.name) {
           case 'NotFoundError':
@@ -96,6 +116,13 @@ export const VideoRecorder = ({ device }: { device: string | null }) => {
             break;
           case 'OverconstrainedError':
             errorMessage = 'Could not find a suitable camera. Please try with a different camera.';
+            break;
+          case 'NotAllowedError':
+            errorMessage =
+              'Camera access was denied. Please check your browser permissions and make sure your camera is connected.';
+            break;
+          default:
+            errorMessage = 'Error getting camera devices.';
             break;
         }
       }
@@ -145,18 +172,18 @@ export const VideoRecorder = ({ device }: { device: string | null }) => {
 
           mediaRecorderRef.current.onstop = async () => {
             try {
+              console.log('Recording stopped, creating blob...');
               const blob = new Blob(chunksRef.current, {
                 type: mimeType,
               });
+              console.log('Blob created:', blob.size, 'bytes');
 
-              // Clean up media recorder
               if (mediaRecorderRef.current) {
                 mediaRecorderRef.current.ondataavailable = null;
                 mediaRecorderRef.current.onstop = null;
                 mediaRecorderRef.current = null;
               }
 
-              // Stop all tracks
               if (stream) {
                 const tracks = stream.getTracks();
                 tracks.forEach((track) => {
@@ -166,22 +193,25 @@ export const VideoRecorder = ({ device }: { device: string | null }) => {
                 });
               }
 
-              // Clean up chunks
               chunksRef.current = [];
-              URL.revokeObjectURL(URL.createObjectURL(blob));
 
-              // Process video
-              await handleVideoRecorded(blob, duration);
+              try {
+                console.log('Handling recorded video...');
+                await handleVideoRecorded(blob, duration);
+                console.log('Video handled successfully');
+              } catch (error) {
+                setError('Error saving the recorded video. Please try again.' + error);
+              }
             } catch (error) {
-              console.error('Error finalizing recording:', error);
+              setError('Error finalizing recording.' + error);
             }
           };
         } catch (error) {
-          console.error('Error stopping recording:', error);
+          setError('Error stopping recording.' + error);
         }
       }
     },
-    [handleStopRecording, handleVideoRecorded, mimeType, stream]
+    [handleStopRecording, handleVideoRecorded, mimeType, stream, toast]
   );
 
   const stopRecording = useCallback(() => {
@@ -228,7 +258,7 @@ export const VideoRecorder = ({ device }: { device: string | null }) => {
 
       const options: MediaRecorderOptions = {
         mimeType,
-        videoBitsPerSecond: 5000000,
+        videoBitsPerSecond: 2500000,
       };
 
       const mediaRecorder = new MediaRecorder(recordingStream, options);
@@ -252,7 +282,7 @@ export const VideoRecorder = ({ device }: { device: string | null }) => {
         }
       }, MAX_RECORDING_DURATION * 1000);
     } catch (error) {
-      console.error('Recording error:', error);
+      console.error(error);
       setPermissionError(
         'This browser or device might not support video recording. Please try using a different browser (like Chrome) or device.'
       );
