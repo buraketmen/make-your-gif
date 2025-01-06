@@ -243,11 +243,11 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
           canvas.toBlob(
             async (blob) => {
               if (blob) {
-                await ffmpeg.writeFile(`frame${i}.png`, await fetchFile(blob));
+                await ffmpeg.writeFile(`frame${i}.jpg`, await fetchFile(blob));
                 resolve();
               }
             },
-            'image/png',
+            'image/jpeg',
             1.0
           );
         });
@@ -264,7 +264,7 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
         '-framerate',
         TARGET_FPS.toString(),
         '-i',
-        'frame%d.png',
+        'frame%d.jpg',
         '-vf',
         filterComplex,
         '-r',

@@ -20,19 +20,23 @@ interface VideoFrameResult {
 }
 
 const defaultOptions = {
-  format: 'image/png',
+  format: 'image/jpeg',
   offsets: [],
   startTime: 0,
   count: 1,
-  quality: 1,
+  quality: 1.0,
 };
 
 let frameWorker: Worker | null = null;
 
 export const cleanupWorker = () => {
-  if (frameWorker) {
-    frameWorker.terminate();
-    frameWorker = null;
+  try {
+    if (frameWorker) {
+      frameWorker.terminate();
+      frameWorker = null;
+    }
+  } catch (error) {
+    console.error('Error during garbage collection:', error);
   }
 };
 

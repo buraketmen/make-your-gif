@@ -260,17 +260,22 @@ export const extractFramesFromVideo = (
   endTime?: number,
   onProgress?: (current: number, total: number) => void
 ): Promise<DrawingFrame[]> => {
+  let canvas: HTMLCanvasElement | null = null;
   return new Promise(async (resolve, reject) => {
     try {
       const effectiveStart = startTime ?? 0;
       const effectiveEnd = endTime ?? video.duration;
 
-      const canvas = document.createElement('canvas');
-      canvas.getContext('2d', {
+      canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d', {
         alpha: false,
         desynchronized: true,
         willReadFrequently: false,
       })!;
+      if (!ctx) {
+        console.error('Failed to create canvas context');
+        return;
+      }
 
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
@@ -279,8 +284,8 @@ export const extractFramesFromVideo = (
       const frameCount = Math.floor((effectiveEnd - effectiveStart) * fps);
       const videoFrames = await extractVideoFrames({
         video,
-        format: 'image/png',
-        quality: 1,
+        format: 'image/jpeg',
+        quality: 1.0,
         startTime: effectiveStart,
         endTime: effectiveEnd,
         count: frameCount,
@@ -301,20 +306,31 @@ export const extractFramesFromVideo = (
               frame.width = width;
               frame.height = height;
             });
+            img.src = '';
             resolve();
           };
-          img.onerror = () => reject(new Error('Failed to load frame image'));
+          img.onerror = () => reject(null);
           img.src = drawingFrames[0].imageData;
         });
       }
-
-      canvas.width = 0;
-      canvas.height = 0;
 
       resolve(drawingFrames);
     } catch (error) {
       console.error('Error during frame extraction:', error);
       reject(error);
+    } finally {
+      if (canvas) {
+        canvas.width = 0;
+        canvas.height = 0;
+        canvas = null;
+      }
+      if (window.gc) {
+        try {
+          window.gc();
+        } catch (error) {
+          console.error('Error during garbage collection:', error);
+        }
+      }
     }
   });
 };
@@ -379,13 +395,13 @@ export const getVideoOutputFormat = (mimeType: string): VideoFormat => {
 export const getFFmpegCodecArgs = (codec: string): string[] => {
   switch (codec) {
     case 'vp8':
-      return ['-c:v', 'vp8', '-b:v', '1M', '-deadline', 'realtime'];
+      return ['-c:v', 'vp8', '-b:v', '1M', '-deadline', 'realtime', '-cpu-used', '0'];
     case 'vp9':
-      return ['-c:v', 'vp9', '-b:v', '1M', '-deadline', 'realtime'];
+      return ['-c:v', 'vp9', '-b:v', '1M', '-deadline', 'realtime', '-cpu-used', '0'];
     case 'h264':
-      return ['-c:v', 'h264', '-deadline', 'realtime', '-crf', '23'];
+      return ['-c:v', 'h264', '-preset', 'ultrafast', '-crf', '23', '-threads', '0'];
     default:
-      return ['-c:v', 'vp8', '-b:v', '1M', '-deadline', 'realtime'];
+      return ['-c:v', 'vp8', '-b:v', '1M', '-deadline', 'realtime', '-cpu-used', '0'];
   }
 };
 
