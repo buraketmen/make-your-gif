@@ -533,46 +533,29 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
       await dbService.init();
 
       const processInBatches = async (inputBlob: Blob) => {
-        try {
-          // Create a copy of the blob to avoid any potential reference issues
-          const blobCopy = new Blob([await inputBlob.arrayBuffer()], { type: inputBlob.type });
+        setProcesses((prev) => ({ ...prev, isConverting: true }));
+        const croppedBlob = await cropVideoToOriginalSize(inputBlob, videoDuration);
+        setProcesses((prev) => ({ ...prev, isConverting: false }));
 
-          const baseVideoId = 'baseVideo';
-          const currentVideoId = 'currentVideo';
+        const baseVideoId = 'baseVideo';
+        const currentVideoId = 'currentVideo';
+        await Promise.all([
+          dbService.saveBlob(baseVideoId, croppedBlob),
+          dbService.saveBlob(currentVideoId, croppedBlob),
+        ]);
 
-          const blobToBase64 = (blob: Blob): Promise<string> => {
-            return new Promise((resolve, reject) => {
-              const reader = new FileReader();
-              reader.onloadend = () => resolve(reader.result as string);
-              reader.onerror = reject;
-              reader.readAsDataURL(blob);
-            });
-          };
+        setBlobIds({
+          baseVideo: baseVideoId,
+          currentVideo: currentVideoId,
+        });
+        setIsRecording(false);
+        setDuration(videoDuration);
+        setVideoFilters((prev) => ({
+          ...prev,
+          trim: { ...prev.trim, end: videoDuration },
+        }));
 
-          const base64Data = await blobToBase64(blobCopy);
-
-          await Promise.all([
-            dbService.saveBlob(baseVideoId, base64Data),
-            dbService.saveBlob(currentVideoId, base64Data),
-          ]);
-
-          setBlobIds({
-            baseVideo: baseVideoId,
-            currentVideo: currentVideoId,
-          });
-
-          setIsRecording(false);
-          setDuration(videoDuration);
-          setVideoFilters((prev) => ({
-            ...prev,
-            trim: { ...prev.trim, end: videoDuration },
-          }));
-
-          await extractFrames(blobCopy, videoDuration);
-        } catch (error) {
-          console.error('Error in processInBatches.', error);
-          setError('Error in processInBatches.');
-        }
+        await extractFrames(croppedBlob);
       };
 
       await processInBatches(blob);
