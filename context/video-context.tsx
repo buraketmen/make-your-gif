@@ -597,110 +597,118 @@ export const VideoProvider = ({ children }: VideoProviderProps) => {
     }
   };
 
-  const extractFrames = async (blob: Blob, providedDuration?: number) => {
+  const extractFrames = async (blob: Blob) => {
     if (!blob) {
       return;
     }
-
-    let video: HTMLVideoElement | null = null;
-    let videoUrl: string | null = null;
-
     try {
-      video = document.createElement('video');
+      const video = document.createElement('video');
+      let isCleanedUp = false;
+
+      const cleanupVideo = () => {
+        if (isCleanedUp) return;
+        isCleanedUp = true;
+
+        if (video) {
+          video.removeEventListener('loadeddata', handleVideoLoad);
+          video.removeEventListener('error', handleVideoError);
+          video.pause();
+          video.src = '';
+          video.load();
+          URL.revokeObjectURL(video.src);
+          video.remove();
+        }
+      };
+
+      const handleVideoLoad = () => {
+        const waitForValidDuration = () => {
+          return new Promise<void>((resolve, reject) => {
+            let attempts = 0;
+            const maxAttempts = 50;
+
+            const checkDuration = () => {
+              attempts++;
+              if (
+                video.duration &&
+                isFinite(video.duration) &&
+                video.videoWidth &&
+                video.videoHeight
+              ) {
+                resolve();
+              } else if (attempts >= maxAttempts) {
+                reject(new Error('Video metadata loading timeout'));
+              } else {
+                setTimeout(checkDuration, 100);
+              }
+            };
+            checkDuration();
+          });
+        };
+
+        waitForValidDuration()
+          .then(async () => {
+            try {
+              setProcesses((prev) => ({ ...prev, isFrameExtracting: true }));
+
+              // Calculate video duration and validate
+              const duration = videoFilters.trim.isActive
+                ? videoFilters.trim.end - videoFilters.trim.start
+                : video.duration;
+
+              if (duration > MAX_RECORDING_DURATION) {
+                console.error(`Video duration exceeds ${MAX_RECORDING_DURATION} seconds limit`);
+                setError(`Video duration exceeds ${MAX_RECORDING_DURATION} seconds limit`);
+                return;
+              }
+
+              const frames = await extractFramesFromVideo(
+                video,
+                TARGET_FPS,
+                videoFilters.trim.isActive ? videoFilters.trim.start : 0,
+                videoFilters.trim.isActive ? videoFilters.trim.end : video.duration,
+                (current, total) => {
+                  setFrameProgress({ current, total });
+                },
+                (error: Error | string) => {
+                  setError(error instanceof Error ? error.message : error);
+                }
+              );
+
+              setFrames(frames);
+            } catch (error) {
+              console.error('Error extracting frames:', error);
+              setError('Failed to process video while extracting frames');
+            } finally {
+              cleanupVideo();
+              setProcesses((prev) => ({ ...prev, isFrameExtracting: false }));
+            }
+          })
+          .catch((error) => {
+            setError(error instanceof Error ? error.message : 'Failed to load video');
+            cleanupVideo();
+            setProcesses((prev) => ({ ...prev, isFrameExtracting: false }));
+          });
+      };
+
+      const handleVideoError = (error: Event) => {
+        console.error('Error loading video:', error);
+        cleanupVideo();
+        setError('Failed to load video');
+      };
+
       video.preload = 'auto';
-      video.playsInline = true;
       video.muted = true;
+      video.addEventListener('loadeddata', handleVideoLoad);
+      video.addEventListener('error', handleVideoError);
 
-      // Create object URL
-      const videoObjectUrl = URL.createObjectURL(blob);
-      if (!videoObjectUrl) {
-        throw new Error('Failed to create video URL');
-      }
-      videoUrl = videoObjectUrl;
+      const videoUrl = URL.createObjectURL(blob);
+      video.src = videoUrl;
+      video.load();
 
-      // Wait for video to be ready
-      await new Promise<void>((resolve, reject) => {
-        if (!video) return reject(new Error('Video element is null'));
-
-        const handleLoadedData = () => {
-          resolve();
-        };
-
-        const handleError = () => {
-          reject(new Error(`Video loading failed: ${video?.error?.message || 'Unknown error'}`));
-        };
-
-        video.addEventListener('loadeddata', handleLoadedData, { once: true });
-        video.addEventListener('error', handleError, { once: true });
-
-        video.src = videoObjectUrl;
-
-        // Additional timeout for safety
-        const timeoutId = setTimeout(() => {
-          video?.removeEventListener('loadeddata', handleLoadedData);
-          video?.removeEventListener('error', handleError);
-          reject();
-        }, 15000);
-
-        video.addEventListener('loadeddata', () => clearTimeout(timeoutId), { once: true });
-      });
-
-      setProcesses((prev) => ({ ...prev, isFrameExtracting: true }));
-
-      let duration = providedDuration;
-      if (!duration && video) {
-        let attempts = 0;
-        while ((!video.duration || !isFinite(video.duration)) && attempts < 10) {
-          await new Promise((resolve) => setTimeout(resolve, 100));
-          attempts++;
-        }
-        duration = video.duration;
-      }
-
-      if (!duration || !isFinite(duration) || duration <= 0) {
-        throw new Error('Could not determine valid video duration');
-      }
-
-      const effectiveDuration = videoFilters.trim.isActive
-        ? videoFilters.trim.end - videoFilters.trim.start
-        : duration;
-
-      if (effectiveDuration > MAX_RECORDING_DURATION) {
-        throw new Error(
-          `Video duration (${effectiveDuration.toFixed(2)}s) exceeds ${MAX_RECORDING_DURATION} seconds limit`
-        );
-      }
-
-      const frames = await extractFramesFromVideo(
-        video,
-        TARGET_FPS,
-        videoFilters.trim.isActive ? videoFilters.trim.start : 0,
-        videoFilters.trim.isActive ? videoFilters.trim.end : duration,
-        (current, total) => {
-          setFrameProgress({ current, total });
-        },
-        (error: Error | string) => {
-          console.error('Error extracting frames.', error);
-          setError('Error extracting frames.');
-        }
-      );
-
-      setFrames(frames);
+      return cleanupVideo;
     } catch (error) {
-      console.error('Error extracting frames.', error);
+      console.error('Error extracting frames:', error);
       setError('Error extracting frames.');
-    } finally {
-      // Cleanup
-      if (videoUrl) {
-        URL.revokeObjectURL(videoUrl);
-      }
-      if (video) {
-        video.pause();
-        video.src = '';
-        video.load();
-        video.remove();
-      }
-      setProcesses((prev) => ({ ...prev, isFrameExtracting: false }));
     }
   };
 
