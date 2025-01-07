@@ -2,6 +2,8 @@
 
 A modern web application that allows you to create, edit, and customize GIFs directly in your browser. Built with Next.js, TypeScript, Tailwind and FFmpeg.
 
+![Make Your GIF](./public/screenshot.png)
+
 ## Features
 
 - [x] Record videos directly from your webcam
