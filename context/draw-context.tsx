@@ -443,10 +443,11 @@ export const DrawProvider = ({ children }: DrawProviderProps) => {
           if (!tempCanvas) {
             tempCanvas = document.createElement('canvas');
             tempCanvas.id = 'temp-canvas';
+            tempCanvas.style.display = 'none';
+            tempCanvas.style.visibility = 'hidden';
             Object.assign(tempCanvas, {
               width: canvas.width,
               height: canvas.height,
-              style: { display: 'none' },
             });
             document.body.appendChild(tempCanvas);
           }
